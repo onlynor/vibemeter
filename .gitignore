@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+
+src/data/
+docs/
+
+.vscode/
+.idea/
+.claude/
+uv.lock
