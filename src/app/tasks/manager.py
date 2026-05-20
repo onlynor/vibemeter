@@ -32,7 +32,7 @@ from app.crawlers import get_crawler
 from app.analysis.preprocess import preprocess_comments
 from app.analysis.llm_insight import LLMConfig, generate_insight
 from app.analysis.sentiment import analyze_batch
-from app.analysis.word_freq import word_frequencies
+from app.analysis.word_freq import phrase_frequencies, word_frequencies
 
 
 EXPORTS_DIR: Path = DATA_DIR / "exports"
@@ -148,16 +148,19 @@ class TaskManager:
             )
 
             raw_comments, source_items = await self._do_crawl(task_id, keyword, platform, count)
+            raw_total = len(raw_comments)
 
             await self._push(
                 task_id,
                 status="preprocessing",
-                current=len(raw_comments),
-                total=max(count, len(raw_comments)),
-                message="正在清洗与去重评论...",
+                current=raw_total,
+                total=max(count, raw_total),
+                raw_total=raw_total,
+                message=f"共搜索到 {raw_total} 条原始评论，正在清洗与去重...",
             )
             await self._set_status(task_id, "preprocessing")
             cleaned = preprocess_comments(raw_comments)
+            valid_total = len(cleaned)
 
             if not cleaned:
                 raise RuntimeError("清洗后无有效评论，无法进入分析阶段")
@@ -165,9 +168,10 @@ class TaskManager:
             await self._push(
                 task_id,
                 status="analyzing",
-                current=len(cleaned),
-                total=len(cleaned),
-                message="正在进行情感分析...",
+                current=valid_total,
+                total=valid_total,
+                raw_total=raw_total,
+                message=f"原始评论 {raw_total} 条，清洗后保留 {valid_total} 条，正在进行情感分析...",
             )
             await self._set_status(task_id, "analyzing")
 
@@ -181,9 +185,10 @@ class TaskManager:
             await self._push(
                 task_id,
                 status="wordcloud",
-                current=len(cleaned),
-                total=len(cleaned),
-                message="计算词频与代表性评论...",
+                current=valid_total,
+                total=valid_total,
+                raw_total=raw_total,
+                message=f"原始评论 {raw_total} 条，有效评论 {valid_total} 条，正在提取观点短语与代表性评论...",
             )
 
             raw_positive_words = await loop.run_in_executor(
@@ -195,13 +200,13 @@ class TaskManager:
             excluded_words = self._shared_neutral_terms(raw_positive_words, raw_negative_words)
 
             positive_words = await loop.run_in_executor(
-                None, lambda: word_frequencies(
-                    buckets["positive"], TOP_WORDS_LIMIT, keyword=keyword, excluded_words=excluded_words
+                None, lambda: phrase_frequencies(
+                    cleaned, scored, TOP_WORDS_LIMIT, keyword=keyword, sentiment="positive"
                 )
             )
             negative_words = await loop.run_in_executor(
-                None, lambda: word_frequencies(
-                    buckets["negative"], TOP_WORDS_LIMIT, keyword=keyword, excluded_words=excluded_words
+                None, lambda: phrase_frequencies(
+                    cleaned, scored, TOP_WORDS_LIMIT, keyword=keyword, sentiment="negative"
                 )
             )
             all_words = await loop.run_in_executor(
@@ -213,7 +218,8 @@ class TaskManager:
             top_positive, top_negative = self._representative_comments(cleaned, scored)
             elapsed = round(time.time() - started, 2)
             summary = {
-                "total": len(cleaned),
+                "total": valid_total,
+                "raw_total": raw_total,
                 "positive": len(buckets["positive"]),
                 "neutral": len(buckets["neutral"]),
                 "negative": len(buckets["negative"]),
@@ -232,9 +238,10 @@ class TaskManager:
                 await self._push(
                     task_id,
                     status="llm",
-                    current=len(cleaned),
-                    total=len(cleaned),
-                    message="正在生成分析解读...",
+                    current=valid_total,
+                    total=valid_total,
+                    raw_total=raw_total,
+                    message=f"原始评论 {raw_total} 条，有效评论 {valid_total} 条，正在生成分析解读...",
                 )
                 try:
                     summary["llm_insight"] = await generate_insight(llm_config, summary)
@@ -242,8 +249,9 @@ class TaskManager:
                     await self._push(
                         task_id,
                         status="llm",
-                        current=len(cleaned),
-                        total=len(cleaned),
+                        current=valid_total,
+                        total=valid_total,
+                        raw_total=raw_total,
                         message=f"LLM 分析增强未启用: {exc}",
                     )
 
@@ -268,9 +276,10 @@ class TaskManager:
             await self._push(
                 task_id,
                 status="completed",
-                current=len(cleaned),
-                total=len(cleaned),
-                message=f"分析完成，共采集 {len(cleaned)} 条评论",
+                current=valid_total,
+                total=valid_total,
+                raw_total=raw_total,
+                message=f"分析完成：共搜索到 {raw_total} 条原始评论，清洗后保留 {valid_total} 条有效评论",
                 elapsed=elapsed,
             )
 
@@ -280,6 +289,7 @@ class TaskManager:
                 task_id,
                 status="failed",
                 message=f"任务失败: {exc}",
+                raw_total=0,
                 error=str(exc),
             )
 
@@ -308,7 +318,7 @@ class TaskManager:
                 status="crawling",
                 current=current,
                 total=count,
-                message=message or f"已采集 {current}/{count} 条评论",
+                message=message or f"目前搜索到 {current} 条原始评论",
             )
 
         try:

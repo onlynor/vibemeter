@@ -5,7 +5,10 @@ import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
+
+load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -71,7 +74,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-static_dir = Path(__file__).resolve().parent.parent / "static"
+static_dir = Path(__file__).resolve().parent.parent / "frontend" / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 app.include_router(pages.router)

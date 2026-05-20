@@ -10,8 +10,17 @@ from fastapi.templating import Jinja2Templates
 
 router = APIRouter()
 templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parents[2] / "templates")
+    directory=str(Path(__file__).resolve().parents[2] / "frontend" / "templates")
 )
+_STATIC_DIR = Path(__file__).resolve().parents[2] / "frontend" / "static"
+
+
+def _asset_version(relative_path: str) -> str:
+    """Use file mtime as a lightweight cache-busting token for static assets."""
+    try:
+        return str(int((_STATIC_DIR / relative_path).stat().st_mtime))
+    except OSError:
+        return "0"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -30,5 +39,10 @@ async def result_page(request: Request, task_id: str):
     return templates.TemplateResponse(
         request,
         "result.html",
-        {"request": request, "task_id": task_id},
+        {
+            "request": request,
+            "task_id": task_id,
+            "dashboard_js_v": _asset_version("js/dashboard.js"),
+            "result_chat_js_v": _asset_version("js/result_chat.js"),
+        },
     )

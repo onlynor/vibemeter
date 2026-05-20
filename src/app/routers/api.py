@@ -53,8 +53,8 @@ async def _load_field(task_id: str, field: str):
     return json.loads(row[0])
 
 
-def _render_wordcloud(words: list[tuple[str, int]], *, palette: str) -> str:
-    """Render a compact wordcloud PNG and return it as base64."""
+def _render_wordcloud(words: list[tuple[str, float]], *, palette: str) -> str:
+    """Render a compact phrase cloud PNG and return it as base64."""
     if not words:
         return ""
     font_path = get_font_path()
@@ -62,12 +62,14 @@ def _render_wordcloud(words: list[tuple[str, int]], *, palette: str) -> str:
         raise RuntimeError("未找到可用中文字体，无法生成词云")
     cloud = WordCloud(
         font_path=font_path,
-        width=900,
-        height=420,
+        width=1200,
+        height=520,
         background_color="white",
-        max_words=90,
-        margin=8,
-        prefer_horizontal=0.88,
+        max_words=80,
+        margin=10,
+        prefer_horizontal=1.0,
+        relative_scaling=0.35,
+        min_font_size=12,
         collocations=False,
         colormap=palette,
     )
@@ -191,7 +193,7 @@ async def get_positive_wordcloud(task_id: str):
     if words is None:
         return _err("结果不存在或尚未完成")
     if not words:
-        return _err("无足够正向评论生成词云")
+        return _err("无足够正向评论生成观点短语云")
     loop = asyncio.get_running_loop()
     try:
         image = await loop.run_in_executor(
@@ -199,7 +201,7 @@ async def get_positive_wordcloud(task_id: str):
             lambda: _render_wordcloud(words, palette="Greens"),
         )
     except Exception as exc:
-        return _err(f"正向词云生成失败: {exc}")
+        return _err(f"正向观点短语云生成失败: {exc}")
     return _ok({"image": image})
 
 
@@ -209,7 +211,7 @@ async def get_negative_wordcloud(task_id: str):
     if words is None:
         return _err("结果不存在或尚未完成")
     if not words:
-        return _err("无足够负向评论生成词云")
+        return _err("无足够负向评论生成观点短语云")
     loop = asyncio.get_running_loop()
     try:
         image = await loop.run_in_executor(
@@ -217,7 +219,7 @@ async def get_negative_wordcloud(task_id: str):
             lambda: _render_wordcloud(words, palette="Reds"),
         )
     except Exception as exc:
-        return _err(f"负向词云生成失败: {exc}")
+        return _err(f"负向观点短语云生成失败: {exc}")
     return _ok({"image": image})
 
 

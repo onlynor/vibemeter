@@ -92,7 +92,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <strong id="progress-label"><span class="dot-pulse"></span> 准备中</strong>
-                    <span class="text-muted small" id="progress-count">0 / 0</span>
+                    <span class="text-muted small" id="progress-count">目前搜索到 0 条</span>
             </div>
             <div class="progress progress-tall" role="progressbar">
                 <div class="progress-bar progress-bar-striped progress-bar-animated" id="progress-bar" style="width: 0%;"></div>
@@ -117,7 +117,7 @@
                         <i class="bi bi-clipboard me-1"></i>复制
                     </button>
                 </div>
-                <details class="mt-2 llm-context-box" id="xml-context-wrap" open>
+                <details class="mt-2 llm-context-box" id="xml-context-wrap">
                     <summary class="text-muted small">展开 / 收起</summary>
                     <pre class="mb-0" id="xml-context-pre">加载中...</pre>
                 </details>
@@ -128,7 +128,7 @@
             <div class="col-md-3 col-6">
                 <div class="card stat-card border-0 shadow-sm h-100">
                     <div class="card-body">
-                        <div class="text-muted small">总评论数</div>
+                        <div class="text-muted small">有效评论数</div>
                         <div class="display-6 fw-bold" id="stat-total">-</div>
                     </div>
                 </div>
@@ -214,7 +214,8 @@
             <div class="col-12">
                 <div class="card border-0 shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title fw-bold mb-3">情绪词云</h5>
+                        <h5 class="card-title fw-bold mb-1">观点词云（仅作参考）</h5>
+                        <div class="text-muted small mb-3">短语抽取与情感权重属于启发式结果，适合快速浏览，不代表严格人工标注结论。</div>
                         <div class="row g-3">
                             <div class="col-lg-6">
                                 <div class="wordcloud-panel wordcloud-panel-positive">
@@ -275,6 +276,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
-<script src="{{ url_for('static', path='js/result_chat.js') }}"></script>
+<script src="{{ url_for('static', path='js/dashboard.js') }}?v={{ dashboard_js_v }}"></script>
+<script src="{{ url_for('static', path='js/result_chat.js') }}?v={{ result_chat_js_v }}"></script>
 {% endblock %}

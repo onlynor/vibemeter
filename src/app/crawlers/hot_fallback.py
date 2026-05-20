@@ -45,15 +45,20 @@ async def bilibili_hot(client, limit: int = 10) -> list[dict[str, Any]]:
 
 
 async def weibo_hot(client, limit: int = 10) -> list[dict[str, Any]]:
-    """Weibo mobile hot-search list (titles only)."""
+    """Weibo mobile hot-search list (titles only).
+
+    Expects the passed-in ``client`` to already carry a logged-in
+    ``SUB`` cookie — the m.weibo.cn hot list endpoint is now gated by
+    the Sina Visitor System and ``X-Requested-With`` headers actually
+    trigger bot detection, so we send plain Edge headers instead.
+    """
     payload = await fetch_json(
         client,
         "https://m.weibo.cn/api/container/getIndex",
         params={"containerid": "106003type=25&filter_type=realtimehot"},
         headers={
             "Referer": "https://m.weibo.cn/",
-            "X-Requested-With": "XMLHttpRequest",
-            "MWeibo-Pwa": "1",
+            "accept": "application/json, text/plain, */*",
         },
     )
     if not payload or payload.get("ok") != 1:

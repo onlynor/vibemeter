@@ -53,12 +53,12 @@
 │   │   ├── hotspots/              # 首页实时热搜聚合
 │   │   ├── tasks/                 # 任务管理 + 进度调度
 │   │   └── routers/               # api / pages / websocket 路由
-│   ├── templates/                 # base / index / result 三个页面
-│   ├── static/css|js/             # style.css + dashboard/index/result_chat/common
+│   ├── frontend/                  # 前端（模板 + 静态资源）
+│   │   ├── templates/             # base / index / result 三个页面
+│   │   └── static/css|js/         # style.css + dashboard/index/result_chat/common
 │   ├── data/                      # SQLite、停用词、自定义词典、导出
 │   ├── scripts/                   # 离线 smoke test
 │   └── run.py                     # 本地开发入口
-├── docs/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -97,17 +97,6 @@ docker compose up --build
 
 ---
 
-## 配置说明
-
-**项目不再依赖任何 `.env` / 环境变量密钥**。所有第三方 API Key 已经从代码里移除：
-
-- 没有 `.env` 文件，没有 `ALLHOT_API_KEY` / `WEIBO_COOKIE`
-- 唯一需要的"密钥"是你自己 LLM 服务商的 API Key，且**只在浏览器里输入 + 服务端内存里持有**，不写盘
-- 进程退出 = Key 立即丢失，下次启动需要重新填
-
-字体路径如果有特殊需求可用 `SENTIMENT_FONT_PATH` 环境变量覆盖，不强制。
-
----
 
 ## 主要接口
 
@@ -134,7 +123,7 @@ docker compose up --build
 ### LLM
 
 - `GET  /api/llm/config` — 读取进程内存里的 LLM 配置
-- `POST /api/llm/config` — 写入进程内存里的 LLM 配置（不落盘）
+- `POST /api/llm/config` — 写入进程内存里的 LLM 配置
 - `POST /api/llm/test` — 用最小请求 ping LLM endpoint
 - `POST /api/result/{task_id}/llm-chat` — 非流式 LLM 对话
 - `POST /api/result/{task_id}/llm-chat-stream` — SSE 流式 LLM 对话

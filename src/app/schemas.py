@@ -70,6 +70,7 @@ class ProgressMessage(BaseModel):
     status: str
     current: int = 0
     total: int = 0
+    raw_total: int = 0
     message: str = ""
     elapsed: Optional[float] = None
     error: Optional[str] = None

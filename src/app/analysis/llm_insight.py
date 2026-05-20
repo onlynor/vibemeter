@@ -106,14 +106,14 @@ def _as_markdown(summary: dict[str, Any]) -> str:
         f"- 评论总数: {summary.get('total', 0)}",
         f"- 情感分布: 正向 {summary.get('positive', 0)} / 中立 {summary.get('neutral', 0)} / 负向 {summary.get('negative', 0)}",
         "",
-        "## 正向高频词",
+        "## 正向高频短语",
     ]
     pos_words = summary.get("top_positive_words", [])[:8]
     neg_words = summary.get("top_negative_words", [])[:8]
     lines.extend(
         [f"- {word}: {count}" for word, count in pos_words] or ["- 暂无"]
     )
-    lines.extend(["", "## 负向高频词"])
+    lines.extend(["", "## 负向高频短语"])
     lines.extend(
         [f"- {word}: {count}" for word, count in neg_words] or ["- 暂无"]
     )

@@ -15,7 +15,7 @@
         crawling: "采集中",
         preprocessing: "清洗中",
         analyzing: "情感分析",
-        wordcloud: "统计词频",
+        wordcloud: "提取短语",
         llm: "生成解读",
         completed: "已完成",
         failed: "失败",
@@ -25,10 +25,17 @@
     function setProgress(data) {
         var total = Math.max(1, data.total || 1);
         var current = data.current || 0;
+        var rawTotal = data.raw_total || 0;
         var width = Math.min(100, Math.round((current / total) * 100));
         var status = data.status || "pending";
         var label = STATUS_LABELS[status] || status || "准备中";
-        progressCount.textContent = current + " / " + total;
+        if (status === "completed" && rawTotal > 0) {
+            progressCount.textContent = "搜索到 " + rawTotal + " 条，采集 " + current + " 条";
+        } else if ((status === "analyzing" || status === "wordcloud" || status === "llm") && rawTotal > 0) {
+            progressCount.textContent = "搜索到 " + rawTotal + " 条，保留 " + current + " 条";
+        } else {
+            progressCount.textContent = "目前搜索到 " + current + " 条";
+        }
         progressMessage.textContent = data.message || "";
         progressLabel.innerHTML = (status === "completed" || status === "failed" ? "" : '<span class="dot-pulse"></span> ') + label;
         progressBar.style.width = (status === "completed" || status === "failed" ? 100 : width) + "%";
@@ -320,6 +327,15 @@
                 document.getElementById("stat-elapsed").textContent = summary.data.elapsed + "s";
                 document.getElementById("stat-keyword").textContent = summary.data.keyword || "-";
                 document.getElementById("stat-platform").textContent = AppCommon.platformLabel(summary.data.platform);
+                setProgress({
+                    status: "completed",
+                    current: summary.data.total || 0,
+                    total: Math.max(1, summary.data.total || 0),
+                    raw_total: summary.data.raw_total || 0,
+                    message: summary.data.raw_total
+                        ? ("分析完成：共搜索到 " + summary.data.raw_total + " 条原始评论，清洗后保留 " + summary.data.total + " 条有效评论")
+                        : "任务已完成"
+                });
                 renderSourceItems(summary.data.source_items || []);
                 renderInsight(summary.data.llm_insight);
                 renderCommentList("top-positive-list", summary.data.top_positive, "positive");
