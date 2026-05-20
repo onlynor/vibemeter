@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 
 src/data/
+src/output/
 docs/
 
 .vscode/

@@ -1,7 +1,6 @@
 """FastAPI application entrypoint."""
 from __future__ import annotations
 
-import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -12,19 +11,16 @@ load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.config import CLEANED_DIR, DB_PATH, RAW_DIR, ensure_directories
+from app.config import DB_PATH, ensure_directories
 from app.database import init_db
 from app.routers import api, pages, ws
-from app.tasks.manager import EXPORTS_DIR
 
 
 def _purge_previous_runs() -> None:
-    """Drop the SQLite DB + exports/ so each launch starts from a clean slate.
+    """Drop the SQLite DB so each launch starts from a clean task history.
 
-    The user wants task history to never survive a process restart, so we
-    blow the on-disk state away before ``init_db`` recreates the schema.
-    Anything still in-flight in memory is also gone (the OS just killed
-    the old process), so nothing to coordinate.
+    Data artefacts (raw/, cleaned/, exports/) are preserved across restarts
+    so that crawled and cleaned datasets remain available on disk.
     """
     for path in (
         DB_PATH,
@@ -39,15 +35,6 @@ def _purge_previous_runs() -> None:
         except OSError:
             # File may be held open by another process — skip silently.
             pass
-
-    if EXPORTS_DIR.exists():
-        shutil.rmtree(EXPORTS_DIR, ignore_errors=True)
-    # raw/ and cleaned/ are part of "each run starts clean" too — old runs
-    # left behind here would just confuse later submissions.
-    if RAW_DIR.exists():
-        shutil.rmtree(RAW_DIR, ignore_errors=True)
-    if CLEANED_DIR.exists():
-        shutil.rmtree(CLEANED_DIR, ignore_errors=True)
 
 
 @asynccontextmanager

@@ -13,9 +13,10 @@
 
 - **多源采集**：B 站 / 微博公开接口；`auto` 模式双源并发采集，单源首批 8 s 超时自动跳过，不会无限等待
 - **文本分析**：`jieba` 分词 + 词性过滤（仅保留名词/动词/形容词）+ 自定义停用词 + `SnowNLP` 情感得分
-- **结果展示**：情感分布饼图、全量高频词 Top 15 柱状图、正/负向词云、最正面/最负面代表评论原文、原帖列表（B 站视频可在页面内嵌播放）
+- **数据清洗**：自动过滤饭圈短评（< 10 字含"哥哥/宝宝/老公"等）、清除微博 UI 残留文本（"展开全文""转发微博"等）
+- **结果展示**：情感分布饼图、全量高频词 Top 15 柱状图、正/负向词云（差减值排序，去除双边争议词）、最正面/最负面代表评论原文、原帖列表（B 站视频可在页面内嵌播放）
 - **任务进度**：WebSocket 实时推送采集与分析进度，状态条 + 当前阶段文字
-- **导出**：自动产出 CSV / 词云图等归档文件，可在结果页直接下载
+- **导出**：自动产出 CSV / JSON 归档文件（可在结果页下载），同时在 `data/output/` 下保存饼图、词云 PNG、代表性评论 JSON
 
 ### LLM 解读（可选）
 
@@ -54,7 +55,7 @@
 │   ├── frontend/                  # 前端（模板 + 静态资源）
 │   │   ├── templates/             # base / index / result 三个页面
 │   │   └── static/css|js/         # style.css + dashboard/index/result_chat/common
-│   ├── data/                      # SQLite、停用词、自定义词典、导出
+│   ├── data/                      # SQLite、停用词、原始/清洗/导出/输出数据
 │   ├── scripts/                   # 离线 smoke test
 │   └── run.py                     # 本地开发入口
 ├── Dockerfile
@@ -85,7 +86,7 @@ python src/run.py
 
 打开 [http://127.0.0.1:8092](http://127.0.0.1:8092)。
 
-> **每次启动会重置任务历史**：[main.py](src/app/main.py) 的 lifespan 会清空 `data/sentiment.db` 和 `exports/`，保证从干净状态开始。
+> **每次启动会重置任务历史**：[main.py](src/app/main.py) 的 lifespan 会清空 `data/sentiment.db`，保证从干净状态开始。`data/raw/`、`data/cleaned/`、`data/exports/`、`data/output/` 中的数据文件会保留。
 
 ### Docker
 

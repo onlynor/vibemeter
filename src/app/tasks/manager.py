@@ -25,8 +25,10 @@ from app.config import (
     DATA_DIR,
     DB_PATH,
     MAX_REPRESENTATIVE_COMMENTS,
+    OUTPUT_DIR,
     RAW_DIR,
     TOP_WORDS_LIMIT,
+    get_font_path,
 )
 from app.crawlers import get_crawler
 from app.analysis.preprocess import preprocess_comments
@@ -285,6 +287,14 @@ class TaskManager:
                 raw=raw_comments,
                 cleaned=cleaned,
                 scored=scored,
+                summary=summary,
+            )
+
+            self._save_output_artifacts(
+                task_id=task_id,
+                keyword=keyword,
+                positive_words=positive_words,
+                negative_words=negative_words,
                 summary=summary,
             )
 
@@ -552,6 +562,75 @@ class TaskManager:
             writer.writerow([header])
             for line in comments:
                 writer.writerow([line])
+
+    def _save_output_artifacts(
+        self,
+        task_id: str,
+        keyword: str,
+        positive_words: list[tuple[str, float]],
+        negative_words: list[tuple[str, float]],
+        summary: dict,
+    ) -> None:
+        """Save pie chart, word clouds, and representative comments to output/."""
+        import io
+
+        from wordcloud import WordCloud
+
+        out_dir = OUTPUT_DIR / f"{task_id}_{_safe_filename(keyword)}"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        font_path = get_font_path()
+
+        # --- Pie chart ---
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            labels = ["正向", "中立", "负向"]
+            sizes = [summary.get("positive", 0), summary.get("neutral", 0), summary.get("negative", 0)]
+            colors = ["#2eb872", "#f0b400", "#e64545"]
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%",
+                   startangle=90, textprops={"fontsize": 12})
+            ax.set_title(f"情感分布 · {keyword}", fontsize=14, fontweight="bold")
+            fig.tight_layout()
+            fig.savefig(out_dir / "sentiment_pie.png", dpi=150)
+            plt.close(fig)
+        except Exception:
+            pass
+
+        # --- Word clouds ---
+        if font_path:
+            for name, words, palette in [
+                ("wordcloud_positive", positive_words, "Greens"),
+                ("wordcloud_negative", negative_words, "Reds"),
+            ]:
+                if not words:
+                    continue
+                try:
+                    cloud = WordCloud(
+                        font_path=font_path, width=1200, height=800,
+                        background_color="white", max_words=200,
+                        margin=2, prefer_horizontal=0.85,
+                        relative_scaling=0.2, min_font_size=10,
+                        max_font_size=120, collocations=False,
+                        colormap=palette,
+                    )
+                    cloud.generate_from_frequencies(dict(words))
+                    cloud.to_file(str(out_dir / f"{name}.png"))
+                except Exception:
+                    pass
+
+        # --- Representative comments ---
+        comments_data = {
+            "keyword": keyword,
+            "top_positive": summary.get("top_positive", []),
+            "top_negative": summary.get("top_negative", []),
+        }
+        (out_dir / "representative_comments.json").write_text(
+            json.dumps(comments_data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     async def _set_status(
         self,

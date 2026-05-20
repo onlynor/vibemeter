@@ -17,6 +17,7 @@ FONTS_DIR: Path = BASE_DIR / "fonts"
 # project rubric ("数据文件夹：爬取到的原始数据、清洗后的数据").
 RAW_DIR: Path = DATA_DIR / "raw"
 CLEANED_DIR: Path = DATA_DIR / "cleaned"
+OUTPUT_DIR: Path = DATA_DIR / "output"
 
 DB_PATH: Path = DATA_DIR / "sentiment.db"
 STOPWORDS_PATH: Path = DATA_DIR / "stopwords.txt"
@@ -75,3 +76,4 @@ def ensure_directories() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     CLEANED_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

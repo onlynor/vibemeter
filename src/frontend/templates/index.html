@@ -21,13 +21,7 @@
                     <textarea class="form-control llm-streamlit-input" id="llm_question" name="llm_question" rows="5"
                               placeholder="例如：针对这个热点的舆情分歧你怎么看？"></textarea>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold" for="llm_context_format">上下文格式</label>
-                    <select class="form-select llm-streamlit-input" id="llm_context_format" name="llm_context_format">
-                        <option value="xml">XML</option>
-                        <option value="markdown">Markdown</option>
-                    </select>
-                </div>
+                <input type="hidden" id="llm_context_format" name="llm_context_format" value="xml">
                 <div class="mb-3">
                     <label class="form-label fw-semibold" for="llm_model">模型名</label>
                     <input class="form-control llm-streamlit-input" id="llm_model" name="llm_model"
