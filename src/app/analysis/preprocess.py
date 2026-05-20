@@ -34,6 +34,23 @@ _HASHTAG_PATTERN = re.compile(r"#[^#]+#")
 _WEIBO_EMOJI_PATTERN = re.compile(r"\[[^\[\]]{1,10}\]")
 _REPLY_PREFIX_PATTERN = re.compile(r"^回复\s*[^:：]{0,30}[:：]\s*")
 
+# --- P0-1: Fan-circle noise filter ---
+# Short comments (< 10 chars) containing these words are fan-circle noise.
+_FAN_CIRCLE_WORDS: set[str] = {
+    "哥哥", "宝宝", "老公", "老婆", "姐姐", "妹妹", "弟弟",
+    "哥哥好", "宝贝", "崽崽", "乖乖", "亲亲", "么么",
+    "心动", "好帅", "好美", "好帅啊", "好美啊",
+}
+
+# --- P0-2: Weibo UI text noise ---
+_WEIBO_UI_NOISE: list[re.Pattern] = [
+    re.compile(r"展开全文[ac]?"),
+    re.compile(r"收起$"),
+    re.compile(r"查看最新(?:博智)?"),
+    re.compile(r"转发微博"),
+    re.compile(r"博智"),
+]
+
 
 def clean_comment(text: str) -> str:
     """Strip noise (URLs, mentions, hashtags, emoji, repeats) from a comment."""
@@ -45,9 +62,19 @@ def clean_comment(text: str) -> str:
     text = _HASHTAG_PATTERN.sub("", text)
     text = _WEIBO_EMOJI_PATTERN.sub("", text)
     text = _EMOJI_PATTERN.sub("", text)
+    # P0-2: Remove Weibo UI text noise
+    for pattern in _WEIBO_UI_NOISE:
+        text = pattern.sub("", text)
     text = _collapse_repeats(text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
+def _is_fan_circle_noise(text: str) -> bool:
+    """P0-1: Drop short fan-circle comments (< 10 chars with fan keywords)."""
+    if len(text) >= 10:
+        return False
+    return any(word in text for word in _FAN_CIRCLE_WORDS)
 
 
 def _collapse_repeats(text: str) -> str:
@@ -74,6 +101,8 @@ def preprocess_comments(comments: Iterable[str]) -> list[str]:
     for raw in comments:
         cleaned = clean_comment(raw)
         if not is_meaningful(cleaned):
+            continue
+        if _is_fan_circle_noise(cleaned):
             continue
         if cleaned in seen:
             continue

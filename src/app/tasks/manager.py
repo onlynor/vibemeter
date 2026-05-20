@@ -32,7 +32,7 @@ from app.crawlers import get_crawler
 from app.analysis.preprocess import preprocess_comments
 from app.analysis.llm_insight import LLMConfig, generate_insight
 from app.analysis.sentiment import analyze_batch
-from app.analysis.word_freq import phrase_frequencies, word_frequencies
+from app.analysis.word_freq import phrase_frequencies, phrase_or_word_frequencies, word_frequencies
 
 
 EXPORTS_DIR: Path = DATA_DIR / "exports"
@@ -200,15 +200,30 @@ class TaskManager:
             excluded_words = self._shared_neutral_terms(raw_positive_words, raw_negative_words)
 
             positive_words = await loop.run_in_executor(
-                None, lambda: phrase_frequencies(
+                None, lambda: phrase_or_word_frequencies(
                     cleaned, scored, TOP_WORDS_LIMIT, keyword=keyword, sentiment="positive"
                 )
             )
             negative_words = await loop.run_in_executor(
-                None, lambda: phrase_frequencies(
+                None, lambda: phrase_or_word_frequencies(
                     cleaned, scored, TOP_WORDS_LIMIT, keyword=keyword, sentiment="negative"
                 )
             )
+
+            # P1-3: Differential word frequency — subtract cross-sentiment weight
+            pos_map = {w: s for w, s in positive_words}
+            neg_map = {w: s for w, s in negative_words}
+            diff_positive = sorted(
+                [(w, round(s - neg_map.get(w, 0), 3)) for w, s in positive_words if s > neg_map.get(w, 0)],
+                key=lambda x: x[1], reverse=True,
+            )
+            diff_negative = sorted(
+                [(w, round(s - pos_map.get(w, 0), 3)) for w, s in negative_words if s > pos_map.get(w, 0)],
+                key=lambda x: x[1], reverse=True,
+            )
+            # Use differential results for persistence and summary
+            positive_words = diff_positive
+            negative_words = diff_negative
             all_words = await loop.run_in_executor(
                 None, lambda: word_frequencies(
                     cleaned, TOP_WORDS_LIMIT, keyword=keyword, excluded_words=excluded_words

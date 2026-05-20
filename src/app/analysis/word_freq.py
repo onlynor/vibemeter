@@ -21,6 +21,13 @@ _BUILTIN_STOPWORDS: set[str] = {
     "一下", "一点", "一次", "一个", "我们", "你们", "他们", "自己",
     "不是", "不会", "不要", "而已", "而是", "作为", "可能", "非常",
     "比较", "确实", "完全", "一直", "免费",
+    # Social media noise words
+    "知道", "看到", "想到", "发现", "应该", "需要", "希望", "认为",
+    "为什么", "怎么样", "越来越", "来说", "其实", "当然", "然后",
+    "不过", "只是", "虽然", "但是", "而且", "或者", "任何", "所有",
+    "今天", "昨天", "明天", "真的", "确实", "居然", "竟然", "难道",
+    "已经", "正在", "开始", "最后", "之后", "之前", "以上", "以下",
+    "起来", "下来", "过来", "出去", "回来", "到了", "不到", "到了",
 }
 
 # Allowed POS prefixes from jieba's tagging scheme:
@@ -56,18 +63,21 @@ def _extra_stopwords(keyword: str | None) -> set[str]:
     """Build per-task exclusions from the query keyword itself."""
     if not keyword:
         return set()
+    # Always exclude the full keyword regardless of length
     candidates = {keyword.strip().lower()}
+    # Also exclude individual parts from splitting
     candidates.update(
         part.strip().lower()
         for part in re.split(r"[\s,，、/|:：_\-]+", keyword)
         if part.strip()
     )
+    # Exclude jieba-segmented tokens (>= 2 chars to avoid single-letter noise)
     candidates.update(
         token.strip().lower()
         for token in jieba.cut(keyword)
-        if token.strip()
+        if token.strip() and len(token.strip()) >= 2
     )
-    return {item for item in candidates if len(item) >= 2}
+    return {item for item in candidates if item}
 
 
 def tokenize(text: str, *, extra_stopwords: set[str] | None = None) -> list[str]:
@@ -205,6 +215,33 @@ def phrase_frequencies(
         for phrase in phrases:
             counter[phrase] += weight
     return [(phrase, round(weight, 3)) for phrase, weight in counter.most_common(top_n)]
+
+
+def phrase_or_word_frequencies(
+    texts: Iterable[str],
+    scores: Iterable[tuple[float, str]],
+    top_n: int = 50,
+    *,
+    keyword: str | None = None,
+    sentiment: Literal["positive", "negative"] | None = None,
+    min_phrases: int = 5,
+) -> list[tuple[str, float]]:
+    """Compute phrase frequencies, falling back to word frequencies if too few phrases."""
+    texts_list = list(texts)
+    scores_list = list(scores)
+    phrases = phrase_frequencies(
+        texts_list, scores_list, top_n,
+        keyword=keyword, sentiment=sentiment,
+    )
+    if len(phrases) >= min_phrases:
+        return phrases
+    # Fallback: use single-word frequencies for the relevant sentiment bucket
+    if sentiment:
+        bucket = [t for t, (_, lbl) in zip(texts_list, scores_list) if lbl == sentiment]
+    else:
+        bucket = texts_list
+    words = word_frequencies(bucket, top_n, keyword=keyword)
+    return [(word, float(count)) for word, count in words]
 
 
 def word_frequencies(
