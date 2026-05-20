@@ -11,9 +11,8 @@
 
 ### 采集 & 分析
 
-- **多源采集**：B 站 / 微博公开接口；`auto` 模式会按 B 站 → 微博 顺序聚合，单源首批 12 s 超时就跳下一个，不会无限等待
-- **首页实时热搜**：聚合百度 / 微博，点一下"实时热搜"刷新缓存（5 分钟）
-- **文本分析**：`jieba` 分词 + 自定义停用词 + `SnowNLP` 情感得分
+- **多源采集**：B 站 / 微博公开接口；`auto` 模式双源并发采集，单源首批 8 s 超时自动跳过，不会无限等待
+- **文本分析**：`jieba` 分词 + 词性过滤（仅保留名词/动词/形容词）+ 自定义停用词 + `SnowNLP` 情感得分
 - **结果展示**：情感分布饼图、全量高频词 Top 15 柱状图、正/负向词云、最正面/最负面代表评论原文、原帖列表（B 站视频可在页面内嵌播放）
 - **任务进度**：WebSocket 实时推送采集与分析进度，状态条 + 当前阶段文字
 - **导出**：自动产出 CSV / 词云图等归档文件，可在结果页直接下载
@@ -50,7 +49,6 @@
 │   │   ├── llm_config_store.py    # 进程内 LLM 配置（替代 .env）
 │   │   ├── analysis/              # 情感、词频、LLM 上下文/对话/SSE
 │   │   ├── crawlers/              # auto / bilibili / weibo + hot fallback
-│   │   ├── hotspots/              # 首页实时热搜聚合
 │   │   ├── tasks/                 # 任务管理 + 进度调度
 │   │   └── routers/               # api / pages / websocket 路由
 │   ├── frontend/                  # 前端（模板 + 静态资源）
@@ -102,7 +100,7 @@ docker compose up --build
 
 ### 页面
 
-- `GET /` — 首页（关键词表单 + 实时热搜 + 最近任务）
+- `GET /` — 首页（关键词表单 + 最近任务）
 - `GET /result/{task_id}` — 分析结果仪表板
 
 ### 任务 & 数据
@@ -110,7 +108,6 @@ docker compose up --build
 - `POST /api/task` — 创建分析任务
 - `GET /api/task/{task_id}/status` — 任务状态
 - `GET /api/tasks/history` — 最近 10 个任务
-- `GET /api/hotspots` — 首页实时热搜（5 分钟缓存）
 - `GET /api/result/{task_id}/summary` — 分析摘要
 - `GET /api/result/{task_id}/sentiment-pie` — 情感分布饼图数据
 - `GET /api/result/{task_id}/top-words` — Top 高频词
@@ -147,4 +144,4 @@ docker compose up --build
 
 ## License
 
-MIT
+[MIT License](LICENSE)
