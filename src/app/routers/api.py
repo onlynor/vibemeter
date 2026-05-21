@@ -1,4 +1,4 @@
-"""REST API routes serving the dashboard's data calls."""
+"""REST API 路由，为仪表板提供数据接口"""
 from __future__ import annotations
 
 import asyncio
@@ -37,10 +37,10 @@ def _err(msg: str) -> dict:
     return {"code": 1, "msg": msg}
 
 
-# -- internals ------------------------------------------------------------
+# 内部工具函数
 
 async def _load_field(task_id: str, field: str):
-    """Read one JSON column from the results table for a task."""
+    """从结果表中读取指定 JSON 列"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
@@ -54,7 +54,7 @@ async def _load_field(task_id: str, field: str):
 
 
 def _render_wordcloud(words: list[tuple[str, float]], *, palette: str) -> str:
-    """Render a compact phrase cloud PNG and return it as base64."""
+    """渲染短语云 PNG 并返回 base64 编码"""
     if not words:
         return ""
     font_path = get_font_path()
@@ -79,11 +79,11 @@ def _render_wordcloud(words: list[tuple[str, float]], *, palette: str) -> str:
     image.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-# -- endpoints ------------------------------------------------------------
+# API 端点
 
 @router.get("/task/{task_id}/status")
 async def task_status(task_id: str):
-    """Return the lifecycle metadata for one task."""
+    """返回单个任务的生命周期元数据"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
@@ -98,7 +98,7 @@ async def task_status(task_id: str):
 
 @router.get("/tasks/history")
 async def task_history():
-    """Return the latest stored tasks in newest-first order."""
+    """返回最新的任务历史记录（按时间倒序）"""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
@@ -120,7 +120,7 @@ async def task_history():
 
 @router.post("/task")
 async def create_task(payload: TaskRequest):
-    """Create one analysis task from the classic HTML page."""
+    """创建一个分析任务"""
     task_id = await task_manager.create_task(
         payload.keyword,
         payload.platform,
@@ -136,7 +136,7 @@ async def create_task(payload: TaskRequest):
 
 @router.get("/hotspots")
 async def get_hotspots():
-    """Return merged homepage hotspots from the live providers."""
+    """返回合并后的首页热搜数据"""
     try:
         items = await hotspot_service.get_hotspots()
     except Exception as exc:
@@ -154,11 +154,7 @@ async def get_summary(task_id: str):
 
 @router.get("/result/{task_id}/xml-context")
 async def get_xml_context(task_id: str):
-    """Return the XML-formatted context that would be fed to the LLM.
-
-    Useful as a display panel on the dashboard so the user can see — and
-    copy — the structured prompt context generated from the analysis.
-    """
+    """返回将喂给 LLM 的 XML 格式上下文，供仪表板展示"""
     summary = await _load_field(task_id, "summary_json")
     if summary is None:
         return _err("结果不存在或尚未完成")
@@ -226,10 +222,7 @@ async def get_negative_wordcloud(task_id: str):
 
 @router.get("/result/{task_id}/export/{kind}")
 async def download_export(task_id: str, kind: str):
-    """Stream a previously written export artefact back to the client.
-
-    ``kind`` is one of: raw, cleaned, analysed, summary.
-    """
+    """返回之前导出的数据文件，kind 为 raw/cleaned/analysed/summary 之一"""
     allowed = {"raw", "cleaned", "analysed", "summary"}
     if kind not in allowed:
         raise HTTPException(status_code=400, detail="invalid kind")
@@ -245,7 +238,7 @@ async def download_export(task_id: str, kind: str):
 
 @router.get("/result/{task_id}/exports")
 async def list_exports(task_id: str):
-    """List which export artefacts are available for download."""
+    """列出可下载的导出文件"""
     available = []
     for kind in ("raw", "cleaned", "analysed", "summary"):
         candidate = Path(EXPORTS_DIR) / f"{task_id}_{kind}.json"
@@ -260,24 +253,20 @@ async def list_exports(task_id: str):
 
 @router.get("/llm/config")
 async def read_llm_config():
-    """Return the LLM config currently held in process memory.
-
-    Empty strings when nothing has been entered yet (e.g. fresh process).
-    Cleared whenever the server restarts, so this is never persisted.
-    """
+    """返回进程内存中当前的 LLM 配置"""
     return _ok(get_llm_config())
 
 
 @router.post("/llm/config")
 async def write_llm_config(payload: LLMConfigPayload):
-    """Replace the in-memory LLM config with the submitted values."""
+    """用提交的值替换内存中的 LLM 配置"""
     updated = update_llm_config(payload.model_dump())
     return _ok(updated)
 
 
 @router.post("/llm/test")
 async def test_llm(payload: LLMTestRequest):
-    """Verify the LLM endpoint with a single tiny chat completion call."""
+    """用一次小型聊天请求验证 LLM 端点"""
     ok, message = await ping_llm(payload.base_url, payload.api_key, payload.model)
     if not ok:
         return _err(message)
@@ -286,7 +275,7 @@ async def test_llm(payload: LLMTestRequest):
 
 @router.post("/result/{task_id}/llm-chat")
 async def llm_chat(task_id: str, payload: LLMChatRequest):
-    """Free-form follow-up chat anchored on this task's analysis context."""
+    """基于任务分析上下文的自由对话"""
     summary = await _load_field(task_id, "summary_json")
     if summary is None:
         return _err("结果不存在或尚未完成，无法进入对话")
@@ -309,13 +298,7 @@ async def llm_chat(task_id: str, payload: LLMChatRequest):
 
 @router.post("/result/{task_id}/llm-chat-stream")
 async def llm_chat_stream(task_id: str, payload: LLMChatRequest):
-    """SSE-streamed version of llm_chat — yields content deltas as they arrive.
-
-    Frames:
-      data: {"delta": "..."}   incremental text
-      data: {"done": true}     normal completion
-      data: {"error": "..."}   any upstream / setup error
-    """
+    """llm_chat 的 SSE 流式版本，逐块返回内容增量"""
     summary = await _load_field(task_id, "summary_json")
 
     async def event_source():

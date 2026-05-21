@@ -7,8 +7,7 @@
     --color-neutral: #f0b400;
     --color-negative: #e64545;
     --radius-card: 14px;
-    /* Sidebar width scales with viewport so wide displays fill more
-       horizontal space without crushing layout on smaller screens. */
+    /* 侧边栏宽度随视口缩放，宽屏多占空间，窄屏不挤压布局 */
     --sidebar-w: clamp(300px, 24vw, 460px);
 }
 
@@ -90,10 +89,7 @@ body {
     overflow-y: auto;
 }
 
-/* Drag handle on the sidebar's right edge.
-   - JS clamps the inline width to [280, min(50vw, 640)] so the layout
-     can't be tortured by extreme drags.
-   - CSS min/max-width above is a defense-in-depth cap in case JS fails. */
+/* 侧边栏右侧拖拽手柄，JS 限制宽度范围，CSS 兜底 */
 .llm-sidebar-resizer {
     position: absolute;
     top: 0;
@@ -112,8 +108,7 @@ body {
 .streamlit-shell.sidebar-collapsed .llm-sidebar-resizer {
     display: none;
 }
-/* While dragging, kill text selection + force the column-resize cursor
-   even when the pointer briefly leaves the 6px strip. */
+/* 拖拽时禁止文本选择，强制显示调整光标 */
 .streamlit-shell.resizing,
 .streamlit-shell.resizing * {
     cursor: col-resize !important;
@@ -131,6 +126,14 @@ body {
     margin-left: calc((var(--sidebar-w) + 28px) * -1);
     opacity: 0;
     pointer-events: none;
+}
+
+.streamlit-shell.sidebar-collapsed {
+    justify-content: center;
+}
+
+.streamlit-shell.sidebar-collapsed .llm-streamlit-main {
+    margin-inline: auto;
 }
 
 .llm-streamlit-main {
@@ -644,9 +647,7 @@ body {
     display: block;
 }
 
-/* ------------------------------------------------------------------ *
- *  LLM sidebar chat panel + test-button status                       *
- * ------------------------------------------------------------------ */
+/* LLM 侧边栏聊天面板和测试按钮状态 */
 .llm-test-status {
     line-height: 1.4;
 }
@@ -688,7 +689,7 @@ body {
     color: #8090a8;
 }
 
-/* One row = avatar + bubble. User on the right, assistant on the left. */
+/* 每行：头像 + 气泡，用户在右，助手在左 */
 .chat-message {
     display: flex;
     gap: 10px;
@@ -742,7 +743,7 @@ body {
     border-bottom-left-radius: 4px;
 }
 
-/* Markdown elements inside an assistant bubble. */
+/* 助手气泡内的 Markdown 元素样式 */
 .chat-bubble-assistant > *:first-child { margin-top: 0; }
 .chat-bubble-assistant > *:last-child { margin-bottom: 0; }
 .chat-bubble-assistant p { margin: 0 0 8px; }
@@ -809,7 +810,7 @@ body {
     margin: 10px 0;
 }
 
-/* Three-dot typing animation shown while waiting for the model. */
+/* 等待模型响应时的三点动画 */
 .chat-typing {
     display: inline-flex;
     align-items: center;
@@ -831,7 +832,7 @@ body {
     40% { transform: scale(1); opacity: 1; }
 }
 
-/* Chat input area — make it look like a real chat textarea. */
+/* 聊天输入区域样式 */
 #llm-chat-input {
     border-radius: 12px;
     resize: vertical;
@@ -839,7 +840,7 @@ body {
     font-size: 0.92rem;
 }
 
-/* Make sure the sidebar can host a tall chat history without overflowing the viewport. */
+/* 确保侧边栏能容纳长对话历史而不溢出视口 */
 .llm-streamlit-sidebar {
     max-height: calc(100vh - 24px);
 }

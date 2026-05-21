@@ -1,9 +1,4 @@
-"""Per-platform hot-trending fallback used by the standalone crawlers.
-
-Bilibili and Weibo both call into here when keyword search returns
-nothing — the platform's own public hot list still works without
-authentication.
-"""
+"""各平台热搜回退，关键词无结果时使用公开热搜榜"""
 from __future__ import annotations
 
 from typing import Any
@@ -12,7 +7,7 @@ from app.crawlers.http_utils import fetch_json
 
 
 async def bilibili_hot(client, limit: int = 10) -> list[dict[str, Any]]:
-    """B站热门视频榜 (popular list, no signature required)."""
+    """B站热门视频榜（无需签名）"""
     payload = await fetch_json(
         client,
         "https://api.bilibili.com/x/web-interface/popular",
@@ -45,13 +40,7 @@ async def bilibili_hot(client, limit: int = 10) -> list[dict[str, Any]]:
 
 
 async def weibo_hot(client, limit: int = 10) -> list[dict[str, Any]]:
-    """Weibo mobile hot-search list (titles only).
-
-    Expects the passed-in ``client`` to already carry a logged-in
-    ``SUB`` cookie — the m.weibo.cn hot list endpoint is now gated by
-    the Sina Visitor System and ``X-Requested-With`` headers actually
-    trigger bot detection, so we send plain Edge headers instead.
-    """
+    """微博移动端热搜列表（仅标题）"""
     payload = await fetch_json(
         client,
         "https://m.weibo.cn/api/container/getIndex",

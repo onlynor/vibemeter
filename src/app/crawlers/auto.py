@@ -1,15 +1,4 @@
-"""All-network aggregator over the available public crawlers.
-
-Runs Bilibili and Weibo concurrently so neither blocks the other.
-Each source gets a short "first-batch" timeout — if a platform is
-silently blocked (Weibo's ``ok:-100``, anti-bot challenges, slow
-network) the aggregator drops it rather than waiting for the source's
-own retry/backoff to finish. Once a source produces real data we let it
-run to completion (or until ``target_count`` is reached).
-
-Source items (original posts/videos) are always propagated from every
-crawler, even when that source yields zero comments.
-"""
+"""全网聚合爬虫，并发运行 B站和微博，超时自动跳过"""
 from __future__ import annotations
 
 import asyncio
@@ -20,7 +9,7 @@ from app.crawlers.bilibili import BilibiliCrawler
 from app.crawlers.weibo import WeiboCrawler
 
 
-# Maximum wall-clock seconds we'll wait for a source's *first* batch.
+# 等待数据源首批数据的最大秒数
 FIRST_BATCH_TIMEOUT: float = 8.0
 
 
@@ -29,7 +18,7 @@ async def _flush_source_items(
     result_queue: asyncio.Queue,
     emitted_urls: set[str],
 ) -> None:
-    """Push newly discovered source items into the shared queue once."""
+    """将新发现的源条目推入共享队列（仅一次）"""
     for item in crawler.get_source_items():
         url = str(item.get("url") or "").strip()
         if not url or url in emitted_urls:
@@ -48,7 +37,7 @@ async def _drain_source(
     collected_ref: list[int],
     failures: list[str],
 ) -> None:
-    """Drive one crawler and push batches into the shared queue."""
+    """驱动单个爬虫并将批次数据推入共享队列"""
     agen = crawler.fetch(keyword, target_count, progress_cb)
     got_first_batch = False
     emitted_source_urls: set[str] = set()
@@ -88,12 +77,12 @@ async def _drain_source(
             await agen.aclose()
         except Exception:
             pass
-    # Always propagate source items, even if no comments were yielded.
+    # 始终传播源条目，即使没有返回评论
     await _flush_source_items(crawler, result_queue, emitted_source_urls)
 
 
 class AutoCrawler(BaseCrawler):
-    """Try every public source concurrently and stop once enough data is collected."""
+    """并发尝试所有公开数据源，收集足够数据后停止"""
 
     name = "auto"
 
@@ -101,7 +90,7 @@ class AutoCrawler(BaseCrawler):
         self._sources: list[BaseCrawler] = [BilibiliCrawler(), WeiboCrawler()]
 
     def record_source_item(self, item: dict) -> None:
-        """Record a source item, capping each platform at 3."""
+        """记录源条目，每个平台最多 3 个"""
         items = getattr(self, "_source_items", [])
         url = str(item.get("url") or "").strip()
         if not url:
@@ -116,7 +105,7 @@ class AutoCrawler(BaseCrawler):
         self._source_items = items
 
     def get_source_items(self) -> list[dict]:
-        """Return items ordered as B站前三 + 微博后三."""
+        """返回排序后的源条目：B站在前，微博在后"""
         items = list(getattr(self, "_source_items", []))
         ordered: list[dict] = []
         for platform in ("bilibili", "weibo"):
@@ -158,7 +147,7 @@ class AutoCrawler(BaseCrawler):
             )
             tasks.append(task)
 
-        # Sentinel: once all crawler tasks finish, signal the consumer.
+        # 所有爬虫任务完成后发送结束信号
         async def _wait_and_signal():
             await asyncio.gather(*tasks, return_exceptions=True)
             await result_queue.put(("done", None))

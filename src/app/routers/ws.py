@@ -1,4 +1,4 @@
-"""WebSocket route for streaming task progress to the dashboard."""
+"""WebSocket 路由，向仪表板推送任务进度"""
 from __future__ import annotations
 
 import asyncio
@@ -15,11 +15,10 @@ router = APIRouter()
 
 @router.websocket("/ws/task/{task_id}")
 async def task_progress(websocket: WebSocket, task_id: str) -> None:
-    """Forward queued progress messages to one connected dashboard client."""
+    """将队列中的进度消息转发给已连接的仪表板客户端"""
     await websocket.accept()
 
-    # If the task is already finished (e.g. the user reloaded the page well
-    # after completion), tell the client immediately and close the socket.
+    # 如果任务已完成，立即通知客户端并关闭连接
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(

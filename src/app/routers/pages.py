@@ -1,4 +1,4 @@
-"""HTML page routes for the classic server-rendered UI."""
+"""HTML 页面路由"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +16,7 @@ _STATIC_DIR = Path(__file__).resolve().parents[2] / "frontend" / "static"
 
 
 def _asset_version(relative_path: str) -> str:
-    """Use file mtime as a lightweight cache-busting token for static assets."""
+    """用文件修改时间作为静态资源的缓存失效标记"""
     try:
         return str(int((_STATIC_DIR / relative_path).stat().st_mtime))
     except OSError:
@@ -25,7 +25,7 @@ def _asset_version(relative_path: str) -> str:
 
 @router.get("/", response_class=HTMLResponse)
 async def index_page(request: Request):
-    """Render the homepage form and hotspot panel."""
+    """渲染首页表单和热搜面板"""
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -35,7 +35,7 @@ async def index_page(request: Request):
 
 @router.get("/result/{task_id}", response_class=HTMLResponse)
 async def result_page(request: Request, task_id: str):
-    """Render the dashboard page shell for one task."""
+    """渲染单个任务的仪表板页面"""
     return templates.TemplateResponse(
         request,
         "result.html",

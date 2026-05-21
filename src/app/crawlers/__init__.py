@@ -1,4 +1,4 @@
-"""Crawler factory."""
+"""爬虫工厂"""
 from __future__ import annotations
 
 from app.crawlers.auto import AutoCrawler
@@ -31,7 +31,7 @@ SUPPORTED_PLATFORMS = list(_REGISTRY.keys())
 
 
 def get_crawler(platform: str) -> BaseCrawler:
-    """Return a fresh crawler instance for the requested platform."""
+    """返回指定平台的爬虫实例"""
     cls = _REGISTRY.get(platform)
     if cls is None:
         raise ValueError(f"Unknown platform: {platform!r}")

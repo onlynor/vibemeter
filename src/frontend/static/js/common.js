@@ -54,19 +54,7 @@
         return yyyy + "-" + mm + "-" + dd + " " + hh + ":" + mi;
     }
 
-    /* ------------------------------------------------------------------ *
-     *  LLM config persistence — backed by the server process's memory.   *
-     *                                                                    *
-     *  The api key is sensitive, so we don't keep it in localStorage     *
-     *  where it would survive logout / browser restart and could leak    *
-     *  via XSS. Instead the server holds it in a process-local dict that *
-     *  evaporates on restart. The frontend just GET/POSTs /api/llm/config*
-     *  so multiple tabs share the same config and a fresh tab gets the   *
-     *  values already typed.                                             *
-     *                                                                    *
-     *  Wipe any leftover localStorage payload from the old version so it *
-     *  doesn't linger on disk.                                           *
-     * ------------------------------------------------------------------ */
+    // LLM 配置持久化：存储在服务端进程内存中，进程重启即清空
     var LLM_LEGACY_KEY = "vibe.llm.config.v1";
     var LLM_FIELDS = [
         "llm_base_url",
@@ -78,8 +66,7 @@
 
     try { localStorage.removeItem(LLM_LEGACY_KEY); } catch (e) { /* ignore */ }
 
-    // Returns a Promise that resolves to the config dict. On failure
-    // (server down, network blip) resolves to {} so the form still loads.
+    // 返回配置字典的 Promise，失败时返回空对象
     function loadLlmConfig() {
         return fetchJson("/api/llm/config")
             .then(function (response) {
@@ -91,8 +78,7 @@
             .catch(function () { return {}; });
     }
 
-    // Fire-and-forget — errors are swallowed because failing to persist
-    // shouldn't block the rest of the page. The values stay in the form.
+    // 即发即忘，失败不阻塞页面
     function saveLlmConfig(values) {
         var body = {};
         LLM_FIELDS.forEach(function (field) {
@@ -125,8 +111,7 @@
         return out;
     }
 
-    // Auto-persist on change so anything the user types is captured even
-    // if they switch pages without submitting a task.
+    // 输入变化时自动持久化，切换页面也能保留配置
     function bindLlmConfigPersistence() {
         LLM_FIELDS.forEach(function (field) {
             var node = document.getElementById(field);
@@ -137,13 +122,7 @@
         });
     }
 
-    /**
-     * Render Markdown-flavoured text into safe HTML.
-     *
-     * Falls back to <br>-joined escaped text if marked.js failed to load
-     * (offline / CDN unreachable) so the assistant's reply still appears
-     * with line breaks even without a parser.
-     */
+    // 将 Markdown 文本渲染为安全 HTML
     function renderMarkdown(text) {
         var raw = String(text == null ? "" : text);
         if (typeof window.marked === "undefined") {
@@ -171,16 +150,7 @@
         renderMarkdown: renderMarkdown
     };
 
-    /* ------------------------------------------------------------------ *
-     *  LLM sidebar drag-to-resize                                         *
-     *                                                                    *
-     *  - Drag the 6px strip on the sidebar's right edge to widen/narrow.  *
-     *  - Width is clamped to [MIN_W, min(50vw, MAX_W)] so the user can't  *
-     *    crush the main content or stretch the sidebar past half the     *
-     *    viewport (CSS min/max-width is a defense-in-depth cap).         *
-     *  - Double-click the handle to reset to the responsive default.      *
-     *  - Persisted to localStorage as a UI preference (not a secret).     *
-     * ------------------------------------------------------------------ */
+    // LLM 侧边栏拖拽调整宽度，双击重置为默认值
     var SIDEBAR_WIDTH_KEY = "vibe.llm.sidebar.width";
     var MIN_W = 280;
     var MAX_W = 720;
@@ -212,7 +182,7 @@
         var shell = document.getElementById("llm-shell");
         if (!resizer || !sidebar || !shell) return;
 
-        // Restore previously stored width.
+        // 恢复之前保存的宽度
         try {
             var saved = parseFloat(localStorage.getItem(SIDEBAR_WIDTH_KEY));
             if (!isNaN(saved) && saved > 0) {
@@ -261,7 +231,7 @@
             try { localStorage.removeItem(SIDEBAR_WIDTH_KEY); } catch (e) { /* ignore */ }
         }
 
-        // Re-clamp if the viewport shrinks below the previously chosen width.
+        // 视口缩小时重新限制宽度
         function onResize() {
             var current = sidebar.getBoundingClientRect().width;
             var clamped = clampSidebarWidth(current);

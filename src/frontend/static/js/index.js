@@ -34,7 +34,7 @@
         try {
             localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0");
         } catch (e) {
-            /* storage may be disabled — degrade gracefully */
+            // 存储可能被禁用，优雅降级
         }
     }
 
@@ -180,7 +180,7 @@
     if (llmOpen) llmOpen.addEventListener("click", function () { setSidebarCollapsed(false); });
     if (llmTestBtn) llmTestBtn.addEventListener("click", runLlmTest);
 
-    // ---- Recent tasks ---------------------------------------------------
+    // 最近任务列表
     var historyLoading = document.getElementById("history-loading");
     var historyError = document.getElementById("history-error");
     var historyEmpty = document.getElementById("history-empty");
@@ -188,7 +188,7 @@
     var historyRefresh = document.getElementById("refresh-history");
 
     function setHistoryState(state) {
-        // state: "loading" | "error" | "empty" | "ready"
+        // 状态: loading / error / empty / ready
         historyLoading.classList.toggle("d-none", state !== "loading");
         historyError.classList.toggle("d-none", state !== "error");
         historyEmpty.classList.toggle("d-none", state !== "empty");
@@ -226,7 +226,7 @@
     function loadHistory() {
         setHistoryState("loading");
         AppCommon.fetchJson("/api/tasks/history").then(function (response) {
-            // /api/tasks/history wraps in {code, data}; tolerate either shape.
+            // /api/tasks/history 返回 {code, data} 格式
             var items = response && response.data ? response.data : response;
             renderHistory(Array.isArray(items) ? items : []);
         }).catch(function (err) {
@@ -241,9 +241,7 @@
     try { storedCollapsed = localStorage.getItem(SIDEBAR_KEY) || "0"; } catch (e) { /* ignored */ }
     setSidebarCollapsed(storedCollapsed === "1");
 
-    // Restore previously entered LLM config so the user doesn't re-type
-    // every visit, then persist any further edits on change. Config now
-    // lives in server memory rather than localStorage, so this is async.
+    // 恢复之前输入的 LLM 配置，配置存储在服务端内存中
     AppCommon.loadLlmConfig().then(function (values) {
         AppCommon.applyLlmConfigToForm(values);
         updatePreview();

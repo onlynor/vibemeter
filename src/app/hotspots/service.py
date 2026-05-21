@@ -1,4 +1,4 @@
-"""Fetch and cache homepage hotspots from remote providers."""
+"""从远程数据源获取并缓存首页热搜"""
 from __future__ import annotations
 
 import asyncio
@@ -13,7 +13,7 @@ from app.config import HOTSPOTS_CACHE_SECONDS
 
 
 class HotspotService:
-    """Provides a 5-minute cached hotspot feed for the homepage."""
+    """提供 5 分钟缓存的首页热搜数据"""
 
     def __init__(self) -> None:
         self._lock = asyncio.Lock()

@@ -1,4 +1,4 @@
-"""Bilibili comment crawler using the public reply API."""
+"""B站评论爬虫，使用公开回复 API"""
 from __future__ import annotations
 
 import asyncio
@@ -13,13 +13,7 @@ from app.crawlers.http_utils import fetch_json, make_client, polite_sleep
 
 
 class BilibiliCrawler(BaseCrawler):
-    """Bilibili crawler: keyword -> video AID list -> per-video comment pages.
-
-    Sorting: ``order=click`` ranks by view-count so big-keyword queries
-    find the actual viral videos rather than recent uploads. When the
-    search returns nothing, we fall back to the platform-wide popular
-    list so the analysis still produces real comments.
-    """
+    """B站爬虫：关键词搜索视频，然后逐个采集评论"""
 
     name = "bilibili"
     SEARCH_URL = "https://api.bilibili.com/x/web-interface/search/type"
@@ -34,14 +28,14 @@ class BilibiliCrawler(BaseCrawler):
         }
 
     async def _bootstrap_cookies(self, client) -> None:
-        """Visit the homepage once to obtain buvid3 and other anti-spam cookies."""
+        """访问首页获取反垃圾 Cookie"""
         try:
             await client.get(self.HOME, headers=self._extra_headers())
         except Exception:
             pass
 
     async def _search_videos(self, client, keyword: str, limit: int = 50) -> list[dict]:
-        """Search videos and return them sorted by view count (popularity)."""
+        """搜索视频并按播放量排序返回"""
         videos: list[dict] = []
         for page in (1, 2, 3, 4, 5):
             payload = await fetch_json(
@@ -90,15 +84,7 @@ class BilibiliCrawler(BaseCrawler):
         return videos[:limit]
 
     async def _fetch_comments_for(self, client, aid: int) -> tuple[int, list[str]]:
-        """Pull hot replies for a single video.
-
-        Returns ``(code, messages)`` so the caller can distinguish a
-        rate-limit (``code == -412``) from a video that simply has no
-        comments. Bilibili's ``/reply/main`` is the only public
-        endpoint that still works without wbi signing, and it caps at
-        ~3 hot replies per request — we just take one shot per aid
-        and let the caller fan out across many videos.
-        """
+        """拉取单个视频的热门回复，返回 (状态码, 评论列表)"""
         payload = await fetch_json(
             client,
             self.REPLY_MAIN_URL,
@@ -154,10 +140,7 @@ class BilibiliCrawler(BaseCrawler):
             prefix = "热门" if used_fallback else "相关"
             await progress_cb(0, f"找到 {len(videos)} 个{prefix}视频，开始采集评论...")
 
-            # Fan-out comment fetches: keep concurrency modest so B站
-            # doesn't return ``-412`` (banned). 3 in flight gives ~5×
-            # speedup vs sequential while staying well under the rate
-            # limit for unauthenticated clients.
+            # 并发抓取评论，保持适度并发避免触发风控
             concurrency = 3
             banned_count = 0
             for start in range(0, len(videos), concurrency):
@@ -180,7 +163,7 @@ class BilibiliCrawler(BaseCrawler):
                     yield batch
                     collected += len(batch)
                     await progress_cb(collected, "")
-                # Back off harder when we start seeing bans.
+                # 遇到风控时加大退避力度
                 await polite_sleep(0.05, 0.2)
                 if banned_count >= 5 and collected == 0:
                     raise RuntimeError(

@@ -1,15 +1,4 @@
-"""Probe each registered crawler with a fixed keyword and report results.
-
-Run from the repo root:
-
-    cd src
-    python -m scripts.smoke_crawlers 流浪地球3
-    # or
-    python -m scripts.smoke_crawlers 流浪地球3 --platforms tieba bilibili
-
-This bypasses the FastAPI app entirely, so you can see exactly which
-endpoints return data right now without going through the dashboard.
-"""
+"""用固定关键词测试每个爬虫并报告结果"""
 from __future__ import annotations
 
 import argparse
@@ -18,7 +7,7 @@ import io
 import sys
 from typing import Iterable
 
-# Force UTF-8 stdout so Chinese prints correctly on Windows cmd
+# 强制 UTF-8 输出，确保中文在 Windows 命令行正确显示
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 from app.crawlers import SUPPORTED_PLATFORMS, get_crawler
@@ -30,7 +19,7 @@ async def _noop_progress(current: int, message: str = "") -> None:
 
 
 async def probe_one(platform: str, keyword: str, target: int) -> dict:
-    """Run a single crawler and return a small result summary."""
+    """运行单个爬虫并返回结果摘要"""
     crawler = get_crawler(platform)
     collected: list[str] = []
     error: str | None = None

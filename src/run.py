@@ -1,8 +1,4 @@
-"""Local development entrypoint.
-
-Run from anywhere — this script adds ``src/`` to ``sys.path`` so the
-``app`` package always resolves, regardless of the caller's cwd.
-"""
+"""本地开发入口，自动将 src 目录加入 sys.path"""
 import sys
 from pathlib import Path
 
@@ -10,7 +6,7 @@ SRC_DIR = Path(__file__).resolve().parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-import uvicorn  # noqa: E402  (must run after sys.path tweak)
+import uvicorn
 
 
 if __name__ == "__main__":

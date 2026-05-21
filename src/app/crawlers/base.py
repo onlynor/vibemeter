@@ -1,4 +1,4 @@
-"""Abstract base class shared by every platform crawler."""
+"""所有平台爬虫共享的抽象基类"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -9,21 +9,16 @@ ProgressCallback = Callable[[int, str], Awaitable[None]]
 
 
 class BaseCrawler(ABC):
-    """Contract for platform-specific comment crawlers.
-
-    Implementations must yield lists of raw comment strings via an async
-    generator. Yielding in batches lets the task manager update progress
-    incrementally and persist partial results if needed.
-    """
+    """平台评论爬虫的抽象接口"""
 
     name: str = "base"
 
     def reset_source_items(self) -> None:
-        """Clear cached source post/video metadata for the current fetch run."""
+        """清除当前抓取运行的缓存源帖/视频元数据"""
         self._source_items = []
 
     def record_source_item(self, item: dict) -> None:
-        """Store one source post/video entry for later dashboard display."""
+        """存储一个源帖/视频条目用于仪表板展示"""
         items = getattr(self, "_source_items", [])
         url = str(item.get("url") or "").strip()
         if not url:
@@ -35,7 +30,7 @@ class BaseCrawler(ABC):
         self._source_items = items[:6]
 
     def get_source_items(self) -> list[dict]:
-        """Return source post/video metadata collected during fetch."""
+        """返回抓取期间收集的源帖/视频元数据"""
         return list(getattr(self, "_source_items", []))
 
     @abstractmethod
@@ -45,7 +40,7 @@ class BaseCrawler(ABC):
         target_count: int,
         progress_cb: ProgressCallback,
     ) -> AsyncIterator[list[str]]:
-        """Yield batches of raw comment strings until target_count reached."""
+        """逐批返回原始评论字符串，直到达到目标数量"""
         raise NotImplementedError
         # The yield below is unreachable but makes this an async generator
         # for type-checking purposes.

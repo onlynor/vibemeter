@@ -1,4 +1,4 @@
-"""Async SQLite database initialization."""
+"""异步 SQLite 数据库初始化"""
 from __future__ import annotations
 
 import aiosqlite
@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_label ON comments(task_id, sentiment_lab
 
 
 async def init_db() -> None:
-    """Create database file and tables on application startup."""
+    """应用启动时创建数据库文件和表"""
     ensure_directories()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(_INIT_SQL)
@@ -61,7 +61,7 @@ async def init_db() -> None:
 
 
 async def _ensure_columns(db: aiosqlite.Connection) -> None:
-    """Add new result columns for existing databases created by older builds."""
+    """为旧版数据库添加新的结果列"""
     cursor = await db.execute("PRAGMA table_info(tasks)")
     existing_tasks = {row[1] for row in await cursor.fetchall()}
     if "task_no" not in existing_tasks:
@@ -81,7 +81,7 @@ async def _ensure_columns(db: aiosqlite.Connection) -> None:
 
 
 async def _backfill_task_numbers(db: aiosqlite.Connection) -> None:
-    """Fill missing task_no values for databases created before task numbering."""
+    """为缺少任务编号的历史记录回填 task_no"""
     cursor = await db.execute("SELECT COALESCE(MAX(task_no), 0) FROM tasks")
     next_no = (await cursor.fetchone())[0] or 0
     cursor = await db.execute(
@@ -100,5 +100,5 @@ async def _backfill_task_numbers(db: aiosqlite.Connection) -> None:
 
 
 def db_connect() -> aiosqlite.Connection:
-    """Return a fresh async connection. Caller is responsible for closing."""
+    """返回一个新的异步数据库连接，调用方负责关闭"""
     return aiosqlite.connect(DB_PATH)

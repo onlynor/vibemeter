@@ -20,9 +20,7 @@
     var chatError = document.getElementById("llm-chat-error");
 
     var history = loadHistory();
-    // Active streaming context. While set, the send button acts as a stop button.
-    // On abort or error we splice these messages out so nothing about the failed
-    // turn lingers in memory or sessionStorage.
+    // 流式传输上下文，发送按钮变为停止按钮，中断时清除失败的对话轮次
     var stream = null;
 
     function setSidebarCollapsed(collapsed) {
@@ -149,8 +147,7 @@
         }
     }
 
-    // Replace the assistant bubble's content in place, without re-rendering the whole list.
-    // Cheaper for long streams and avoids jitter / flicker.
+    // 就地更新助手气泡内容，避免整体重渲染
     function updateStreamingBubble() {
         if (!stream) return;
         var bubbles = chatHistory.querySelectorAll(".chat-bubble-assistant");
@@ -160,13 +157,11 @@
         bubble.innerHTML = text
             ? AppCommon.renderMarkdown(text)
             : '<span class="chat-typing"><span></span><span></span><span></span></span>';
-        // Stick to bottom while the model is writing.
+        // 模型输出时自动滚动到底部
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
 
-    // Drop the in-flight (user, assistant) pair from memory + storage.
-    // Used by both manual stop and any error / network failure — the requirement
-    // is that interrupted turns leave no trace, in-memory or in sessionStorage.
+    // 丢弃正在进行的对话轮次，中断的对话不留痕迹
     function discardCurrentStream() {
         if (!stream) return;
         // history layout: [..., user(userIdx), assistant(assistantIdx)]
@@ -180,7 +175,7 @@
         if (!stream) return;
         var idx = stream.assistantIdx;
         if (!history[idx] || !history[idx].content) {
-            // Model returned nothing — treat as a failed turn, drop both messages.
+            // 模型返回空回复，视为失败轮次
             discardCurrentStream();
             setError("模型返回了空回复");
             return;
@@ -190,8 +185,7 @@
         renderHistory();
     }
 
-    // Parse a buffer chunk into complete SSE events.
-    // Returns { events: [parsed-data...], rest: leftover-string }.
+    // 将缓冲区解析为完整的 SSE 事件
     function parseSseBuffer(buf) {
         var events = [];
         while (true) {
@@ -292,7 +286,7 @@
             if (err.name !== "AbortError") {
                 encounteredError = err.message || String(err);
             }
-            // AbortError → silently fall through; discardCurrentStream will run below.
+            // AbortError 静默处理，由 discardCurrentStream 清理
         }
 
         if (encounteredError) {
@@ -301,8 +295,7 @@
         } else if (!stream) {
             // Already discarded by an explicit stop click.
         } else if (!doneFlag) {
-            // Connection ended without an explicit done event — also treat as discard
-            // so we don't persist a half-finished answer.
+            // 连接未正常结束，丢弃半成品回复
             discardCurrentStream();
         } else {
             finishStreamSuccessfully();
@@ -326,13 +319,13 @@
 
         setError("");
 
-        // Snapshot the history that should be sent upstream (everything finished so far).
+        // 快照已完成的对话历史用于上游发送
         var historyForUpstream = history.slice();
 
         history.push({ role: "user", content: question });
         history.push({ role: "assistant", content: "" });
         renderHistory();
-        // Intentionally do NOT save to sessionStorage yet — only persist on success.
+        // 故意不立即保存，仅在成功后持久化
 
         streamSse({
             base_url: baseUrl,
@@ -353,7 +346,7 @@
     chatForm.addEventListener("submit", function (event) {
         event.preventDefault();
         if (stream) {
-            // Button is currently a "stop" button — abort instead of submitting.
+            // 按钮当前为停止模式，中止而非提交
             stopActiveStream();
             return;
         }
@@ -370,7 +363,7 @@
         }
     });
 
-    // Enter sends, Shift+Enter inserts a newline — matches most chat UIs.
+    // Enter 发送，Shift+Enter 换行
     chatInput.addEventListener("keydown", function (event) {
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
             event.preventDefault();
@@ -386,8 +379,7 @@
         setError("");
     });
 
-    // Tab closing or page unload mid-stream: abort + scrub the in-flight turn so
-    // a refresh / reopen won't show a half-written answer.
+    // 页面关闭时中断流式传输并清理进行中的对话
     window.addEventListener("beforeunload", function () {
         if (stream) {
             try { stream.controller.abort(); } catch (e) { /* ignore */ }

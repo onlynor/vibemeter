@@ -1,9 +1,4 @@
-"""Typed row models mirroring the SQLite schema.
-
-These are not used by the ORM (raw SQL is used throughout) but provide
-type-safe documentation for the database layout and can be used to validate
-rows coming back from aiosqlite.
-"""
+"""SQLite 数据库表对应的类型化行模型"""
 from __future__ import annotations
 
 from typing import Optional

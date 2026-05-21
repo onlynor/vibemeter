@@ -1,1 +1,1 @@
-"""Analysis package: preprocessing, sentiment scoring, word frequency."""
+"""分析包：预处理、情感评分、词频统计"""

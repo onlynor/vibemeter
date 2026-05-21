@@ -1,4 +1,4 @@
-"""SnowNLP-based sentiment scoring and bucketing."""
+"""基于 SnowNLP 的情感评分与分类"""
 from __future__ import annotations
 
 from typing import Iterable
@@ -12,7 +12,7 @@ from app.config import (
 
 
 def score_comment(text: str) -> float:
-    """Return a SnowNLP sentiment score in [0, 1]. Defaults to 0.5 on failure."""
+    """返回 SnowNLP 情感分数 [0, 1]，失败时返回 0.5"""
     if not text:
         return 0.5
     try:
@@ -22,7 +22,7 @@ def score_comment(text: str) -> float:
 
 
 def label_from_score(score: float) -> str:
-    """Bucket a numeric score into one of: positive / neutral / negative."""
+    """将数值分数转换为情感标签：正向/中立/负向"""
     if score > SENTIMENT_POSITIVE_THRESHOLD:
         return "positive"
     if score < SENTIMENT_NEGATIVE_THRESHOLD:
@@ -31,7 +31,7 @@ def label_from_score(score: float) -> str:
 
 
 def analyze_batch(texts: Iterable[str]) -> list[tuple[float, str]]:
-    """Score every text and return (score, label) tuples preserving order."""
+    """批量评分并返回 (分数, 标签) 元组列表，保持原始顺序"""
     out: list[tuple[float, str]] = []
     for t in texts:
         score = score_comment(t)

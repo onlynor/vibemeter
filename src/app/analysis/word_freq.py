@@ -1,4 +1,4 @@
-"""Tokenization, stopword filtering, and word frequency aggregation."""
+"""分词、停用词过滤与词频聚合"""
 from __future__ import annotations
 
 from collections import Counter
@@ -30,8 +30,7 @@ _BUILTIN_STOPWORDS: set[str] = {
     "起来", "下来", "过来", "出去", "回来", "到了", "不到", "到了",
 }
 
-# Allowed POS prefixes from jieba's tagging scheme:
-# n* = nouns, v* = verbs, a* = adjectives.
+# 允许的词性前缀：n=名词，v=动词，a=形容词
 _ALLOWED_POS_PREFIXES: tuple[str, ...] = ("n", "v", "a")
 _PHRASE_CONTENT_POS_PREFIXES: tuple[str, ...] = ("n", "v", "a")
 _PHRASE_FUNCTION_POS_PREFIXES: tuple[str, ...] = ("d",)
@@ -41,7 +40,7 @@ _PHRASE_SPLIT_PATTERN = re.compile(r"[，,。！？!；;：:\(\)（）\[\]【】
 
 
 def load_stopwords() -> set[str]:
-    """Load stopwords from disk lazily; reused for the lifetime of the process."""
+    """延迟加载停用词表，进程生命周期内复用"""
     global _STOPWORDS
     if _STOPWORDS is None:
         words: set[str] = set(_BUILTIN_STOPWORDS)
@@ -55,12 +54,12 @@ def load_stopwords() -> set[str]:
     return _STOPWORDS
 
 
-# Pre-warm jieba's main dictionary so the first request isn't slow.
+# 预热 jieba 词典，避免首次请求延迟
 jieba.initialize()
 
 
 def _extra_stopwords(keyword: str | None) -> set[str]:
-    """Build per-task exclusions from the query keyword itself."""
+    """根据查询关键词构建任务级排除词集"""
     if not keyword:
         return set()
     # Always exclude the full keyword regardless of length
@@ -81,7 +80,7 @@ def _extra_stopwords(keyword: str | None) -> set[str]:
 
 
 def tokenize(text: str, *, extra_stopwords: set[str] | None = None) -> list[str]:
-    """Tokenize ``text`` keeping only multi-character content words."""
+    """对文本分词，仅保留多字符的实义词"""
     stopwords = load_stopwords()
     extra_stopwords = extra_stopwords or set()
     tokens: list[str] = []
@@ -107,11 +106,7 @@ def _phrase_tokens(
     *,
     extra_stopwords: set[str] | None = None,
 ) -> list[tuple[str, str]]:
-    """Tokenize one comment for phrase extraction.
-
-    Keeps core content words plus a small set of one-character modifiers
-    so phrases such as ``不 推荐`` and ``很 清晰`` survive.
-    """
+    """为短语提取进行分词，保留核心实词和单字修饰词"""
     stopwords = load_stopwords()
     extra_stopwords = extra_stopwords or set()
     tokens: list[tuple[str, str]] = []
@@ -184,8 +179,7 @@ def _phrase_candidates(
                     continue
                 phrases.add(" ".join(word for word, _ in chunk))
     if not phrases:
-        # Fallback to single high-signal token when the sentence is too short
-        # to form a useful phrase cloud.
+        # 句子太短无法形成短语时，回退到单个高频词
         for unit in units or [text]:
             for word, flag in _phrase_tokens(unit, extra_stopwords=extra_stopwords):
                 if _is_content_token(word, flag):
@@ -201,7 +195,7 @@ def phrase_frequencies(
     keyword: str | None = None,
     sentiment: Literal["positive", "negative"] | None = None,
 ) -> list[tuple[str, float]]:
-    """Compute weighted viewpoint phrases from sentiment-scored comments."""
+    """从情感评分评论中计算加权观点短语"""
     counter: Counter[str] = Counter()
     extra_stopwords = _extra_stopwords(keyword)
     for text, (score, label) in zip(texts, scores):
@@ -210,7 +204,7 @@ def phrase_frequencies(
         phrases = _phrase_candidates(text, extra_stopwords=extra_stopwords)
         if not phrases:
             continue
-        # Stronger opinions should dominate the phrase cloud more clearly.
+        # 强烈观点应在短语云中更突出
         weight = 0.5 + abs(float(score) - 0.5) * 2.0
         for phrase in phrases:
             counter[phrase] += weight
@@ -226,7 +220,7 @@ def phrase_or_word_frequencies(
     sentiment: Literal["positive", "negative"] | None = None,
     min_phrases: int = 5,
 ) -> list[tuple[str, float]]:
-    """Compute phrase frequencies, falling back to word frequencies if too few phrases."""
+    """计算短语频率，短语不足时回退到词频"""
     texts_list = list(texts)
     scores_list = list(scores)
     phrases = phrase_frequencies(
@@ -235,7 +229,7 @@ def phrase_or_word_frequencies(
     )
     if len(phrases) >= min_phrases:
         return phrases
-    # Fallback: use single-word frequencies for the relevant sentiment bucket
+    # 回退：使用单字词频
     if sentiment:
         bucket = [t for t, (_, lbl) in zip(texts_list, scores_list) if lbl == sentiment]
     else:
@@ -251,7 +245,7 @@ def word_frequencies(
     keyword: str | None = None,
     excluded_words: set[str] | None = None,
 ) -> list[tuple[str, int]]:
-    """Compute the top-N most common content words across ``texts``."""
+    """统计文本中最常见的前 N 个实义词"""
     counter: Counter[str] = Counter()
     extra_stopwords = _extra_stopwords(keyword)
     if excluded_words:

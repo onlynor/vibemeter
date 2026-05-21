@@ -1,16 +1,4 @@
-"""Weibo comment crawler using the m.weibo.cn mobile JSON API.
-
-Weibo gated all m.weibo.cn endpoints behind the Sina Visitor System,
-so anonymous requests now get HTML challenges instead of JSON. To
-fetch anything we need a logged-in cookie supplied via the
-``WEIBO_COOKIE`` environment variable.
-
-The cookie is cleaned down to ``SUB`` / ``_T_WM`` / ``XSRF-TOKEN`` (the
-three fields the reference weibo-crawler keeps), the session is warmed
-up against ``m.weibo.cn/`` so the server can hand back its own
-fingerprint, and every API request rotates UA + Referer + Edge-style
-``sec-ch-ua`` headers to dodge per-IP throttling.
-"""
+"""微博评论爬虫，使用 m.weibo.cn 移动端 JSON API，需要登录 Cookie"""
 from __future__ import annotations
 
 import os
@@ -51,7 +39,7 @@ _SVS_MARKERS = ("Sina Visitor System", "/visitor/genvisitor")
 
 
 def _is_visitor_challenge(text: str) -> bool:
-    """Detect Sina Visitor System HTML challenge."""
+    """检测新浪访客系统 HTML 挑战"""
     if not text:
         return False
     head = text[:2048]
@@ -59,13 +47,7 @@ def _is_visitor_challenge(text: str) -> bool:
 
 
 def _looks_like_html(text: str) -> bool:
-    """Detect when the JSON endpoint returns its SPA shell instead.
-
-    With an expired/invalid SUB cookie, ``/api/container/getIndex``
-    serves the m.weibo.cn webapp HTML (``<!doctype html><div id=app>``)
-    rather than 401. Treat that as an auth failure so we surface a
-    clear error instead of silently looking like "no results".
-    """
+    """检测 JSON 端点是否返回了 HTML 外壳（Cookie 失效的信号）"""
     if not text:
         return False
     head = text.lstrip()[:512].lower()
@@ -73,12 +55,7 @@ def _looks_like_html(text: str) -> bool:
 
 
 def _parse_cookie_string(cookie_str: str) -> dict[str, str]:
-    """Pull SUB / _T_WM / XSRF-TOKEN out of a raw browser cookie string.
-
-    Falls back to splitting the whole header if SUB isn't present in
-    the expected form — keeps user mistakes (e.g. pasting just the SUB
-    value) recoverable.
-    """
+    """从浏览器 Cookie 字符串中提取 SUB / _T_WM / XSRF-TOKEN"""
     core: dict[str, str] = {}
     backup: dict[str, str] = {}
     if not cookie_str:
@@ -102,14 +79,7 @@ def _parse_cookie_string(cookie_str: str) -> dict[str, str]:
 
 
 class WeiboCrawler(BaseCrawler):
-    """Search Weibo for matching posts then drain their comment threads.
-
-    Requires a logged-in cookie via the ``WEIBO_COOKIE`` env var; the
-    public mobile API now refuses anonymous traffic with a Sina Visitor
-    System challenge. When the cookie is missing or expired we surface
-    that as a ``RuntimeError`` so the aggregator skips to the next
-    source instead of silently returning zero comments.
-    """
+    """微博爬虫：搜索匹配微博并采集评论，需要 WEIBO_COOKIE 环境变量"""
 
     name = "weibo"
     BASE = "https://m.weibo.cn"
@@ -139,7 +109,7 @@ class WeiboCrawler(BaseCrawler):
         }
 
     async def _warm_up(self, client: httpx.AsyncClient) -> None:
-        """Visit m.weibo.cn so the server can mint a matching fingerprint."""
+        """访问 m.weibo.cn 预热会话指纹"""
         try:
             await client.get(
                 f"{self.BASE}/",
@@ -163,13 +133,7 @@ class WeiboCrawler(BaseCrawler):
         referer: str | None = None,
         retries: int = 2,
     ) -> dict | None:
-        """GET an m.weibo.cn JSON endpoint with SVS-challenge detection.
-
-        Returns the parsed JSON dict on success. Returns ``None`` on
-        transient failures (network, 4xx/5xx, JSON-decode). Raises
-        ``RuntimeError`` on an SVS challenge — the cookie is the
-        problem and retrying won't help.
-        """
+        """GET 微博 JSON 端点，自动检测访客系统挑战"""
         url = f"{self.BASE}{path}"
         for attempt in range(retries + 1):
             try:
@@ -198,8 +162,7 @@ class WeiboCrawler(BaseCrawler):
             try:
                 payload = resp.json()
             except ValueError:
-                # Endpoint returned HTML (SPA shell) — that's a cookie
-                # problem too: a logged-in SUB gets JSON back.
+                    # 端点返回了 HTML，说明 Cookie 已失效
                 if _looks_like_html(resp.text):
                     raise RuntimeError(
                         "微博 API 返回 HTML 而非 JSON：WEIBO_COOKIE 中的 SUB 可能已失效，请重新导出 cookie"
@@ -296,7 +259,7 @@ class WeiboCrawler(BaseCrawler):
         path: str,
         max_pages: int,
     ) -> AsyncIterator[list[str]]:
-        """Generic paginated comment puller shared by hotflow + legacy."""
+        """通用分页评论拉取器，兼容 hotflow 和 legacy 端点"""
         is_hotflow = path == self.COMMENT_HOTFLOW
         max_id = 0
         max_id_type = 0
@@ -343,7 +306,7 @@ class WeiboCrawler(BaseCrawler):
     async def _fetch_comments(
         self, client: httpx.AsyncClient, mid: str
     ) -> AsyncIterator[list[str]]:
-        """Yield comments; falls back to legacy endpoint if hotflow yields nothing."""
+        """拉取评论，hotflow 无结果时回退到 legacy 端点"""
         yielded = False
         async for batch in self._drain_comments(
             client, mid, self.COMMENT_HOTFLOW, max_pages=10
@@ -383,8 +346,7 @@ class WeiboCrawler(BaseCrawler):
                     0, "微博关键词无返回（接口被风控），尝试使用微博热搜榜..."
                 )
                 hot_items = await weibo_hot(client, limit=10)
-                # Record hot items as source items so they always show up
-                # in the aggregation, even if refined search finds nothing.
+                    # 记录热搜条目，确保即使精搜无结果也能展示
                 for hot in hot_items[:3]:
                     self.record_source_item({
                         "platform": self.name,

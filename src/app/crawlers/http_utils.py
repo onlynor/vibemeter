@@ -1,4 +1,4 @@
-"""Shared HTTP utilities for crawlers: User-Agent rotation + retry."""
+"""爬虫共享的 HTTP 工具：UA 轮换与重试"""
 from __future__ import annotations
 
 import asyncio
@@ -31,12 +31,12 @@ MOBILE_UAS = [
 
 
 def pick_ua(mobile: bool = False) -> str:
-    """Return a random User-Agent string."""
+    """返回随机 User-Agent 字符串"""
     return random.choice(MOBILE_UAS if mobile else DESKTOP_UAS)
 
 
 def default_headers(*, mobile: bool = False, referer: str | None = None) -> dict[str, str]:
-    """Return a header dict that mimics a real browser request."""
+    """返回模拟真实浏览器请求的头信息"""
     headers = {
         "User-Agent": pick_ua(mobile=mobile),
         "Accept": "application/json, text/plain, text/html, */*;q=0.8",
@@ -50,7 +50,7 @@ def default_headers(*, mobile: bool = False, referer: str | None = None) -> dict
 
 
 def make_client(*, mobile: bool = False, referer: str | None = None) -> httpx.AsyncClient:
-    """Build an httpx.AsyncClient with sensible defaults for crawling."""
+    """构建用于爬取的 httpx.AsyncClient"""
     return httpx.AsyncClient(
         follow_redirects=True,
         timeout=DEFAULT_CRAWL_TIMEOUT,
@@ -68,12 +68,7 @@ async def fetch_json(
     retries: int = 3,
     base_delay: float = 0.6,
 ) -> Optional[Any]:
-    """GET ``url`` and parse as JSON. Returns None on persistent failure.
-
-    Implements exponential backoff with jitter; retries on 5xx / 429 /
-    JSON-decode failures. Network-layer errors raise after the final try
-    but are caught here so the caller can decide whether to fall back.
-    """
+    """GET 请求并解析 JSON，带指数退避重试"""
     delay = base_delay
     for attempt in range(retries):
         try:
@@ -102,7 +97,7 @@ async def fetch_text(
     retries: int = 3,
     base_delay: float = 0.6,
 ) -> Optional[str]:
-    """Same as fetch_json but returns the raw response body as text."""
+    """GET 请求并返回原始响应文本"""
     delay = base_delay
     for attempt in range(retries):
         try:
@@ -125,5 +120,5 @@ async def fetch_text(
 
 
 async def polite_sleep(low: float = 0.4, high: float = 1.1) -> None:
-    """Random short sleep between requests."""
+    """请求间的随机短暂停顿"""
     await asyncio.sleep(random.uniform(low, high))

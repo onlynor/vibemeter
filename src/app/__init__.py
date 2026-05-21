@@ -1,3 +1,3 @@
-"""Sentiment Insight application package."""
+"""舆情洞察员应用包"""
 
 __version__ = "0.1.0"

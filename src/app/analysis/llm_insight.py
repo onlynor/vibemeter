@@ -1,4 +1,4 @@
-"""LLM-powered dialogue using structured post-analysis context."""
+"""基于 LLM 的结构化分析上下文对话"""
 from __future__ import annotations
 
 import json
@@ -29,7 +29,7 @@ CHAT_SYSTEM_PROMPT = (
 
 @dataclass(slots=True)
 class LLMConfig:
-    """Runtime config for an OpenAI-compatible chat completion endpoint."""
+    """OpenAI 兼容聊天补全端点的运行时配置"""
 
     base_url: str = ""
     api_key: str = ""
@@ -131,7 +131,7 @@ def _as_markdown(summary: dict[str, Any]) -> str:
 
 
 def build_context(summary: dict[str, Any], context_format: str) -> str:
-    """Render summary data into LLM-friendly XML or Markdown."""
+    """将摘要数据渲染为 LLM 友好的 XML 或 Markdown 格式"""
     return _as_markdown(summary) if context_format == "markdown" else _as_xml(summary)
 
 
@@ -139,7 +139,7 @@ async def generate_insight(
     config: LLMConfig,
     summary: dict[str, Any],
 ) -> dict[str, str] | None:
-    """Run a compact Q&A call against structured analysis context."""
+    """基于结构化分析上下文执行问答调用"""
     if not config.enabled:
         return None
 
@@ -212,11 +212,7 @@ def _auth_headers(api_key: str) -> dict[str, str]:
 
 
 async def ping_llm(base_url: str, api_key: str, model: str) -> tuple[bool, str]:
-    """Send the smallest possible request to verify the LLM endpoint.
-
-    Returns ``(ok, message)``. ``message`` carries either the model's
-    reply preview on success or the failure reason on error.
-    """
+    """发送最小请求验证 LLM 端点是否可用"""
     base_url = (base_url or "").strip()
     model = (model or "").strip()
     if not base_url or not model:
@@ -270,15 +266,7 @@ async def chat_with_context(
     context_format: str = "xml",
     history: list[dict[str, str]] | None = None,
 ) -> dict[str, str]:
-    """Run a free-form chat turn anchored on the analysis context.
-
-    Differs from :func:`generate_insight` in that:
-    * No JSON-mode constraint — the model can answer in plain text.
-    * Conversation ``history`` is forwarded so multi-turn chats work.
-    * Only the first turn carries the (potentially large) context block;
-      subsequent turns reuse the same system message but skip the
-      context payload to keep token usage reasonable.
-    """
+    """基于分析上下文的自由对话，支持多轮历史"""
     base_url = (base_url or "").strip()
     model = (model or "").strip()
     question = (question or "").strip()
@@ -341,11 +329,7 @@ async def chat_with_context_stream(
     context_format: str = "xml",
     history: list[dict[str, str]] | None = None,
 ) -> AsyncIterator[str]:
-    """Streaming variant of :func:`chat_with_context`.
-
-    Yields incremental text deltas from the upstream OpenAI-compatible
-    chat completion. Caller is responsible for SSE framing.
-    """
+    """chat_with_context 的流式版本，逐块返回文本增量"""
     base_url = (base_url or "").strip()
     model = (model or "").strip()
     question = (question or "").strip()
@@ -389,7 +373,7 @@ async def chat_with_context_stream(
             json=payload,
         ) as response:
             if response.status_code >= 400:
-                # Drain so the error body is available, then raise.
+                # 读取错误响应体后抛出异常
                 body = await response.aread()
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}: {body[:200].decode('utf-8', 'replace')}",

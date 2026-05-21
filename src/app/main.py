@@ -17,11 +17,7 @@ from app.routers import api, pages, ws
 
 
 def _purge_previous_runs() -> None:
-    """Drop the SQLite DB so each launch starts from a clean task history.
-
-    Data artefacts (raw/, cleaned/, exports/) are preserved across restarts
-    so that crawled and cleaned datasets remain available on disk.
-    """
+    """删除旧的 SQLite 数据库，确保每次启动都从干净状态开始"""
     for path in (
         DB_PATH,
         DB_PATH.with_suffix(DB_PATH.suffix + "-journal"),
@@ -33,13 +29,12 @@ def _purge_previous_runs() -> None:
         except FileNotFoundError:
             pass
         except OSError:
-            # File may be held open by another process — skip silently.
             pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialise the on-disk state before serving the first request."""
+    """应用生命周期管理，启动时初始化磁盘状态"""
     ensure_directories()
     _purge_previous_runs()
     await init_db()

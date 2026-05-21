@@ -1,12 +1,4 @@
-"""Background task orchestration: crawl, preprocess, analyse, persist, export.
-
-A single ``TaskManager`` instance owns:
-
-* an in-memory ``asyncio.Queue`` per ``task_id`` used to fan progress
-  updates out to one or more WebSocket subscribers;
-* the SQLite-backed lifecycle records for each task;
-* the JSON export artefacts written under ``data/exports``.
-"""
+"""后台任务编排：爬取、预处理、分析、持久化、导出"""
 from __future__ import annotations
 
 import asyncio
@@ -41,15 +33,12 @@ EXPORTS_DIR: Path = DATA_DIR / "exports"
 MIN_REQUIRED_COMMENTS = 300
 MAX_HISTORY_TASKS = 10
 
-# Characters Windows / Linux file systems both reject inside filenames.
+# Windows 和 Linux 文件系统都不允许的文件名字符
 _FILENAME_BANNED = r'<>:"/\\|?*\x00-\x1F'
 
 
 def _safe_filename(text: str, *, max_len: int = 40) -> str:
-    """Strip filename-hostile characters from ``text`` for use in a path.
-
-    Empty / whitespace input returns ``"task"`` so we always have a slug.
-    """
+    """去除文本中的文件名非法字符，用于路径拼接"""
     import re
 
     cleaned = re.sub(rf"[{_FILENAME_BANNED}\s]+", "_", (text or "").strip())
@@ -58,16 +47,16 @@ def _safe_filename(text: str, *, max_len: int = 40) -> str:
 
 
 class TaskManager:
-    """Manages background analysis pipelines and their progress channels."""
+    """管理后台分析流水线及其进度通道"""
 
     def __init__(self) -> None:
         self._queues: dict[str, asyncio.Queue] = {}
         self._tasks: dict[str, asyncio.Task] = {}
 
-    # -- public API --------------------------------------------------------
+    # 公开 API
 
     def get_queue(self, task_id: str) -> asyncio.Queue:
-        """Return (creating if necessary) the progress queue for a task."""
+        """返回任务的进度队列（不存在则创建）"""
         if task_id not in self._queues:
             self._queues[task_id] = asyncio.Queue()
         return self._queues[task_id]
@@ -84,7 +73,7 @@ class TaskManager:
         llm_question: str = "",
         llm_context_format: str = "xml",
     ) -> str:
-        """Persist a task row and schedule the background pipeline."""
+        """持久化任务行并调度后台流水线"""
         EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
         task_id = str(uuid.uuid4())
         async with aiosqlite.connect(DB_PATH) as db:
@@ -106,8 +95,7 @@ class TaskManager:
             )
             await self._prune_history(db, keep=MAX_HISTORY_TASKS)
             await db.commit()
-        # Pre-create the queue so a fast-connecting WebSocket client never
-        # races ahead of the producer.
+        # 预创建队列，防止 WebSocket 客户端连接过快导致竞态
         self.get_queue(task_id)
         self._tasks[task_id] = asyncio.create_task(
             self._run(
@@ -126,7 +114,7 @@ class TaskManager:
         )
         return task_id
 
-    # -- pipeline ---------------------------------------------------------
+    # 流水线
 
     async def _run(
         self,
@@ -136,7 +124,7 @@ class TaskManager:
         count: int,
         llm_config: LLMConfig,
     ) -> None:
-        """Main pipeline executed in the background for one task."""
+        """单个任务的后台主流水线"""
         started = time.time()
         platform_label = self._platform_label(platform)
         try:
@@ -212,7 +200,7 @@ class TaskManager:
                 )
             )
 
-            # P1-3: Differential word frequency — subtract cross-sentiment weight
+            # 差异词频：减去对立情感中的权重
             pos_map = {w: s for w, s in positive_words}
             neg_map = {w: s for w, s in negative_words}
             diff_positive = sorted(
@@ -223,7 +211,7 @@ class TaskManager:
                 [(w, round(s - pos_map.get(w, 0), 3)) for w, s in negative_words if s > pos_map.get(w, 0)],
                 key=lambda x: x[1], reverse=True,
             )
-            # Use differential results for persistence and summary
+            # 使用差异结果进行持久化和摘要
             positive_words = diff_positive
             negative_words = diff_negative
             all_words = await loop.run_in_executor(
@@ -318,7 +306,7 @@ class TaskManager:
                 error=str(exc),
             )
 
-    # -- helpers ---------------------------------------------------------
+    # 辅助方法
 
     async def _do_crawl(
         self,
@@ -327,7 +315,7 @@ class TaskManager:
         platform: str,
         count: int,
     ) -> tuple[list[str], list[dict]]:
-        """Drive the platform crawler and stream progress to subscribers."""
+        """驱动平台爬虫并向订阅者推送进度"""
         crawler = get_crawler(platform)
         collected: list[str] = []
 
@@ -422,7 +410,7 @@ class TaskManager:
         positive_words: list[tuple[str, int]],
         negative_words: list[tuple[str, int]],
     ) -> set[str]:
-        """Drop topical words that dominate both sides similarly."""
+        """去除在正负情感中占比相近的主题词"""
         positive_map = dict(positive_words)
         negative_map = dict(negative_words)
         excluded: set[str] = set()
@@ -480,7 +468,7 @@ class TaskManager:
         scored: list[tuple[float, str]],
         summary: dict,
     ) -> None:
-        """Persist raw + cleaned + analysed artefacts to disk for submission."""
+        """将原始、清洗、分析后的数据持久化到磁盘"""
         EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
         RAW_DIR.mkdir(parents=True, exist_ok=True)
         CLEANED_DIR.mkdir(parents=True, exist_ok=True)
@@ -523,10 +511,7 @@ class TaskManager:
             encoding="utf-8",
         )
 
-        # ----- data/raw + data/cleaned: csv + json per task --------------
-        # These mirror the export files but live in the rubric-mandated
-        # ``raw/`` and ``cleaned/`` folders, in both csv and json so
-        # downstream tools (Excel, pandas) can pick whichever they prefer.
+        # 同时写入 raw 和 cleaned 目录（CSV + JSON 双格式）
         name_base = f"{task_id}_{platform}_{_safe_filename(keyword)}"
         self._dump_dataset(RAW_DIR / f"{name_base}.json",
                            RAW_DIR / f"{name_base}.csv",
@@ -544,11 +529,7 @@ class TaskManager:
         *,
         header: str,
     ) -> None:
-        """Write a comment list in both json and csv at the given paths.
-
-        - JSON keeps the task meta + comment array, easy for programmatic use.
-        - CSV is utf-8-sig (Excel-friendly) with a single column and a header.
-        """
+        """将评论列表同时写入 JSON 和 CSV 文件"""
         json_path.write_text(
             json.dumps(
                 {**meta, "count": len(comments), "comments": comments},
@@ -571,7 +552,7 @@ class TaskManager:
         negative_words: list[tuple[str, float]],
         summary: dict,
     ) -> None:
-        """Save pie chart, word clouds, and representative comments to output/."""
+        """保存饼图、词云和代表性评论到 output 目录"""
         import io
 
         from wordcloud import WordCloud
@@ -580,7 +561,7 @@ class TaskManager:
         out_dir.mkdir(parents=True, exist_ok=True)
         font_path = get_font_path()
 
-        # --- Pie chart ---
+        # 饼图
         try:
             import matplotlib
             matplotlib.use("Agg")
@@ -599,7 +580,7 @@ class TaskManager:
         except Exception:
             pass
 
-        # --- Word clouds ---
+        # 词云
         if font_path:
             for name, words, palette in [
                 ("wordcloud_positive", positive_words, "Greens"),
@@ -621,7 +602,7 @@ class TaskManager:
                 except Exception:
                     pass
 
-        # --- Representative comments ---
+        # 代表性评论
         comments_data = {
             "keyword": keyword,
             "top_positive": summary.get("top_positive", []),
@@ -655,7 +636,7 @@ class TaskManager:
         await self.get_queue(task_id).put(payload)
 
     async def _prune_history(self, db: aiosqlite.Connection, *, keep: int) -> None:
-        """Keep only the latest N tasks plus their related artefacts."""
+        """仅保留最近 N 个任务及其相关数据"""
         cursor = await db.execute(
             """SELECT task_id
                FROM tasks

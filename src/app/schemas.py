@@ -1,4 +1,4 @@
-"""Pydantic schemas for HTTP / WebSocket payloads."""
+"""HTTP/WebSocket 请求与响应的 Pydantic 模型"""
 from __future__ import annotations
 
 from typing import Any, List, Optional
@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class TaskRequest(BaseModel):
-    """Form payload sent when creating a new analysis task."""
+    """创建分析任务的表单请求体"""
 
     keyword: str = Field(..., min_length=1, max_length=64)
     platform: str = Field(..., pattern="^(auto|bilibili|weibo)$")
@@ -24,7 +24,7 @@ class TaskCreated(BaseModel):
 
 
 class LLMTestRequest(BaseModel):
-    """Lightweight ping payload for verifying the LLM endpoint."""
+    """验证 LLM 端点的轻量级测试请求"""
 
     base_url: str = Field(..., min_length=1, max_length=256)
     api_key: str = Field(default="", max_length=256)
@@ -32,22 +32,19 @@ class LLMTestRequest(BaseModel):
 
 
 class LLMChatRequest(BaseModel):
-    """Free-form follow-up question against a finished task's context."""
+    """基于已完成任务上下文的自由对话请求"""
 
     base_url: str = Field(..., min_length=1, max_length=256)
     api_key: str = Field(default="", max_length=256)
     model: str = Field(..., min_length=1, max_length=128)
     question: str = Field(..., min_length=1, max_length=600)
     context_format: str = Field(default="xml", pattern="^(xml|markdown)$")
-    # Each entry is {role: "user"|"assistant", content: str}; capped at 12 turns.
+    # 对话历史记录，每项包含 role 和 content 字段，最多 12 轮
     history: Optional[List[dict]] = None
 
 
 class LLMConfigPayload(BaseModel):
-    """Per-process LLM config, mirrored from the frontend form fields.
-
-    Stored in memory only — cleared when the process exits.
-    """
+    """进程级 LLM 配置，与前端表单字段镜像，仅内存存储"""
 
     llm_base_url: str = Field(default="", max_length=512)
     llm_api_key: str = Field(default="", max_length=512)
@@ -57,7 +54,7 @@ class LLMConfigPayload(BaseModel):
 
 
 class ApiResponse(BaseModel):
-    """Envelope wrapping every JSON API response."""
+    """JSON API 响应的通用包装"""
 
     code: int = 0
     data: Optional[Any] = None
@@ -65,7 +62,7 @@ class ApiResponse(BaseModel):
 
 
 class ProgressMessage(BaseModel):
-    """Single update pushed over the WebSocket connection."""
+    """WebSocket 推送的单条进度消息"""
 
     status: str
     current: int = 0

@@ -1,13 +1,4 @@
-"""In-memory store for the active LLM connection config.
-
-Lives only inside the process — no disk, no env, no cookies. When the
-server stops the api key is gone with it. Cleared on first startup so a
-restart always begins blank.
-
-Keys mirror the form field ids on the frontend so the JSON can be
-round-tripped without translation:
-    llm_base_url, llm_api_key, llm_model, llm_question, llm_context_format
-"""
+"""LLM 连接配置的内存存储，进程退出即清空"""
 from __future__ import annotations
 
 import threading
@@ -27,18 +18,13 @@ _config: Dict[str, str] = {key: "" for key in _ALLOWED_KEYS}
 
 
 def get_config() -> Dict[str, str]:
-    """Return a shallow copy of the current config."""
+    """返回当前配置的浅拷贝"""
     with _lock:
         return dict(_config)
 
 
 def update_config(values: Dict[str, str]) -> Dict[str, str]:
-    """Replace stored values with the allowed keys from ``values``.
-
-    Unknown keys are silently dropped. Each value is coerced to a stripped
-    string and capped at ``_MAX_VALUE_LEN`` to defend against accidentally
-    sending a massive payload.
-    """
+    """用允许的键值更新配置，未知键会被忽略"""
     with _lock:
         for key in _ALLOWED_KEYS:
             if key in values:
