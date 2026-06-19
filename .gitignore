@@ -11,3 +11,6 @@ docs/
 .claude/
 .env
 uv.lock
+img/
+report/
+src/scripts
