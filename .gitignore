@@ -10,7 +10,6 @@ docs/
 .idea/
 .claude/
 .env
-uv.lock
 img/
 report/
 src/scripts
