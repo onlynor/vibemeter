@@ -1,13 +1,28 @@
 version: "3.9"
 
 services:
-  web:
-    build: .
-    container_name: sentiment-insight
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: vibemeter-backend
     ports:
       - "8092:8092"
     volumes:
-      - ./src/data:/app/src/data
+      - ./backend/data:/app/backend/data
     environment:
       - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    container_name: vibemeter-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
     restart: unless-stopped

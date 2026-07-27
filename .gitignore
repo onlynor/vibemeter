@@ -1,15 +1,27 @@
+# python
 __pycache__/
 *.pyc
 .venv/
+backend/.venv/
 
-src/data/
-src/output/
-docs/
+# Node
+frontend/node_modules/
+frontend/dist/
+.pnpm-store/
 
+# 运行时数据
+backend/data/
+
+# 感与本地配置
+.env
+backend/.env
+
+# 编辑器/IDE
 .vscode/
 .idea/
 .claude/
-.env
+
+# 文档与杂项
+docs/
 img/
 report/
-src/scripts

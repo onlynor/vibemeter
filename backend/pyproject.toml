@@ -1,0 +1,32 @@
+[project]
+name = "sentiment-insight"
+version = "0.1.0"
+description = "Sentiment analysis platform for social media comments"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Sentiment Insight" }]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "aiosqlite>=0.19.0",
+    "httpx>=0.27.0",
+    "beautifulsoup4>=4.12.0",
+    "jieba>=0.42.1",
+    "snownlp>=0.12.3",
+    "wordcloud>=1.9.3",
+    "matplotlib>=3.8.0",
+    "pydantic>=2.5.0",
+    "websockets>=12.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+playwright = ["playwright>=1.41.0"]
+
+# 后端通过 run.py 将 backend/ 加入 sys.path 直接运行，无需打成 wheel。
+# 设为非打包项目，避免 uv sync 尝试构建 wheel。
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = []
