@@ -47,14 +47,16 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8092"]
 # target: frontend
 # 构建 Vite 静态产物后用 nginx 托管，并反代 /api、/ws 到 backend 容器
 # ============================================================================
-FROM node:20-slim AS frontend-build
+# pnpm 11 需要 Node >=22.13；用 node:22-slim 以匹配 corepack 拉到的 pnpm 版本
+FROM node:22-slim AS frontend-build
 WORKDIR /build
 RUN corepack enable
-# 根级 .npmrc 的镜像源配置也拷进去，保证容器内 pnpm 能取到包
+# 先拷清单文件 + .npmrc，让依赖层可被 Docker 缓存复用
 COPY .npmrc ./
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+# 再拷源码，仅源码变更才触发后续 build 层
 COPY frontend/ ./
-RUN pnpm install --frozen-lockfile || pnpm install
 RUN pnpm build
 
 # 复制一份纯静态产物到独立 layer，方便前端 target 复用

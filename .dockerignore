@@ -1,18 +1,19 @@
 # Python
-__pycache__/
-*.pyc
+**/__pycache__/
+**/*.pyc
 .venv/
 backend/.venv/
 
 # Node
 frontend/node_modules/
 frontend/dist/
-.pnpm-store/
+pnpm-store/
+.npmrc.local
 
-# 运行时数据（DB / 原始 / 清洗 / 导出 / 输出）
+# 运行时数据
 backend/data/
 
-# 环境与本地配置
+# 本地配置
 .env
 backend/.env
 
@@ -25,3 +26,7 @@ backend/.env
 docs/
 img/
 report/
+.git/
+.gitignore
+README.md
+LICENSE
