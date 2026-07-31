@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from datetime import datetime
@@ -28,10 +29,15 @@ from app.analysis.word_freq import (
     phrase_or_word_frequencies,
     word_frequencies,
 )
+from app.search import search_all
 
+
+logger = logging.getLogger(__name__)
 
 MIN_REQUIRED_COMMENTS = 300
 MAX_HISTORY_TASKS = 10
+# 每个搜索引擎取多少条作为 LLM 背景资料
+SEARCH_RESULT_LIMIT = 8
 
 
 class TaskManager:
@@ -124,8 +130,23 @@ class TaskManager:
                 message=f"开始采集 {platform_label} 关于「{keyword}」的评论...",
             )
 
-            raw_comments, source_items = await self._do_crawl(task_id, keyword, platform, count)
+            # 搜索引擎检索与评论采集并发跑：它只喂 LLM 上下文与前端展示，
+            # 不参与情感分析，所以不必阻塞采集，失败也不该影响整个任务。
+            search_task = asyncio.create_task(
+                search_all(keyword, limit=SEARCH_RESULT_LIMIT)
+            )
+            try:
+                raw_comments, source_items, source_stats = await self._do_crawl(
+                    task_id, keyword, platform, count
+                )
+            except Exception:
+                search_task.cancel()
+                raise
             raw_total = len(raw_comments)
+
+            search_results, search_status = await self._collect_search(
+                task_id, search_task
+            )
 
             await self._push(
                 task_id,
@@ -219,6 +240,12 @@ class TaskManager:
                 "keyword": keyword,
                 "platform": platform,
                 "source_items": source_items,
+                "source_stats": source_stats,
+                # 搜索引擎结果只作为 LLM 的背景资料与前端展示，刻意不并入
+                # comments：标题/摘要是对事件的客观描述而非网友观点，喂进
+                # SnowNLP 会以中性分稀释真实的情感分布。
+                "search_results": [r.to_dict() for r in search_results],
+                "search_status": search_status,
                 "top_positive": top_positive,
                 "top_negative": top_negative,
                 "top_positive_words": positive_words[:10],
@@ -269,9 +296,13 @@ class TaskManager:
 
         except Exception as exc:  # surface any failure to the UI
             await self._set_status(task_id, "failed", str(exc))
+            # 带齐 current/total：订阅端是按整条消息替换状态的，缺字段会被
+            # 渲染成 undefined。
             await self._push(
                 task_id,
                 status="failed",
+                current=0,
+                total=max(1, count),
                 message=f"任务失败: {exc}",
                 raw_total=0,
                 error=str(exc),
@@ -315,7 +346,41 @@ class TaskManager:
 
         if not collected:
             raise RuntimeError("未抓取到有效评论，请切换公开数据源或更换关键词")
-        return collected, crawler.get_source_items()
+        # 采集阶段的来源构成（去重前、清洗前）。聚合搜索下这是判断
+        # "这份情感分布到底代表谁"的关键信息，单看总数看不出来。
+        stats = crawler.get_source_stats() or {platform: len(collected)}
+        return collected, crawler.get_source_items(), stats
+
+    async def _collect_search(
+        self,
+        task_id: str,
+        search_task: "asyncio.Task",
+    ) -> tuple[list, list[dict]]:
+        """取回并发执行的检索结果
+
+        检索是锦上添花的上下文，任何异常都不应让整个分析任务失败，
+        因此这里把失败收敛成"没有检索结果"并继续往下走。
+        """
+        try:
+            results, status = await search_task
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.exception("搜索引擎检索失败")
+            await self._push(
+                task_id,
+                status="crawling",
+                message=f"搜索引擎检索失败，已跳过：{exc}",
+            )
+            return [], []
+        usable = [s["label"] for s in status if s["ok"] and s["count"]]
+        if usable:
+            await self._push(
+                task_id,
+                status="crawling",
+                message=f"搜索引擎补充资料：{'、'.join(usable)} 共 {len(results)} 条",
+            )
+        return results, status
 
     async def _persist_comments(
         self,

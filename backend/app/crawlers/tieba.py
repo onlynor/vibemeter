@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncIterator
 
 from bs4 import BeautifulSoup
@@ -39,6 +40,8 @@ class TiebaCrawler(BaseCrawler):
     # 每个主题最多翻的楼层页数
     MAX_PAGES_PER_THREAD = 3
     MAX_THREADS = 12
+    # 同时抓几个主题，理由同豆瓣：串行翻十几个主题的墙钟时间会撞上单源时限
+    THREAD_CONCURRENCY = 3
 
     def _extra_headers(self, *, referer: str | None = None) -> dict[str, str]:
         headers = {
@@ -76,7 +79,7 @@ class TiebaCrawler(BaseCrawler):
                 threads.append({
                     "tid": tid,
                     "title": (post.get("title") or "").strip() or f"贴吧主题 {tid}",
-                    "content": (post.get("content") or "").replace("\n", " ").strip(),
+                    "content": _strip_markup(post.get("content") or ""),
                     "forum": forum,
                     "url": f"https://tieba.baidu.com/p/{tid}",
                 })
@@ -137,21 +140,32 @@ class TiebaCrawler(BaseCrawler):
                     "display_type": "post",
                 })
             collected = 0
-            for thread in threads:
+            for start in range(0, len(threads), self.THREAD_CONCURRENCY):
                 if collected >= target_count:
                     break
+                chunk = threads[start:start + self.THREAD_CONCURRENCY]
                 await progress_cb(
                     collected,
-                    f"贴吧：抓取「{thread['title'][:20]}」楼层... 已收集 {collected} 条",
+                    f"贴吧：抓取「{chunk[0]['title'][:20]}」等 {len(chunk)} 个主题楼层..."
+                    f" 已收集 {collected} 条",
                 )
-                batch = await self._fetch_replies(
-                    client, thread, target_count, collected
+                results = await asyncio.gather(
+                    *(
+                        self._fetch_replies(client, t, target_count, collected)
+                        for t in chunk
+                    ),
+                    return_exceptions=True,
                 )
-                if not batch:
-                    # 楼层读不到时，主题正文本身也是一条公开文本
-                    if not thread["content"]:
+                batch: list[str] = []
+                for thread, result in zip(chunk, results):
+                    if isinstance(result, Exception) or not result:
+                        # 楼层读不到时，主题正文本身也是一条公开文本
+                        if thread["content"]:
+                            batch.append(thread["content"])
                         continue
-                    batch = [thread["content"]]
+                    batch.extend(result)
+                if not batch:
+                    continue
                 collected += len(batch)
                 yield batch
             if collected == 0:
@@ -175,6 +189,18 @@ class TiebaCrawler(BaseCrawler):
             return False, "贴吧主题页未解析出楼层内容"
         suffix = "（已配置 Cookie）" if self.has_cookie else "（匿名访问）"
         return True, f"贴吧公开楼层可用{suffix}"
+
+
+def _strip_markup(raw: str) -> str:
+    """搜索接口的 content 是富文本片段，可能带 <img> 等标签
+
+    楼层走的是 ``get_text()``，标签天然不会进正文；但主题正文（楼层读不到
+    时的兜底文本）是直接取的原始字段，内联图片会以整段 base64 的形式留在
+    里面，既污染分析也会把 raw 导出撑大，所以在入口处就剥掉。
+    """
+    if not raw:
+        return ""
+    return BeautifulSoup(raw, "html.parser").get_text(" ", strip=True).replace("\n", " ").strip()
 
 
 def _parse_floor_texts(html: str) -> list[str]:

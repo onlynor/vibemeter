@@ -54,12 +54,26 @@ def default_headers(*, mobile: bool = False, referer: str | None = None) -> dict
 
 
 def make_client(*, mobile: bool = False, referer: str | None = None) -> httpx.AsyncClient:
-    """构建用于爬取的 httpx.AsyncClient"""
+    """构建用于爬取的 httpx.AsyncClient
+
+    ``trust_env=False`` 是刻意的：本项目一律直连，不读取 ALL_PROXY /
+    HTTP_PROXY 等环境变量。理由有两条——
+
+    * 目标站点都在国内，走代理反而更慢，且以境外 IP 访问会让微博、知乎
+      的风控更严；
+    * httpx 是在**构造** AsyncClient 时就按环境变量建好 transport 的，
+      若 ALL_PROXY 是 socks5:// 而环境里没有 socksio，这里会直接抛
+      ImportError，五个爬虫、热搜、LLM 调用同时全线失败，报错还完全
+      看不出是代理引起的。
+
+    终端里的代理配置不受影响，这里只是让本项目的行为与它解耦。
+    """
     return httpx.AsyncClient(
         follow_redirects=True,
         timeout=DEFAULT_CRAWL_TIMEOUT,
         headers=default_headers(mobile=mobile, referer=referer),
         http2=False,
+        trust_env=False,
     )
 
 

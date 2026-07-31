@@ -45,6 +45,8 @@ async def task_progress(websocket: WebSocket, task_id: str) -> None:
     if row["status"] == "failed":
         await websocket.send_json({
             "status": "failed",
+            "current": 0,
+            "total": max(1, row["target_count"] or 1),
             "message": row["error"] or "任务失败",
         })
         await websocket.close()

@@ -4,6 +4,8 @@ import type {
   ExportItem,
   PieSlice,
   ProgressMessage,
+  SearchProviderStatus,
+  SearchResult,
   SourceItem,
   Summary,
   WordItem,
@@ -143,7 +145,10 @@ export function ResultPage() {
       socket.onmessage = (event) => {
         const data: ProgressMessage = JSON.parse(event.data);
         if (data.status === "keepalive") return;
-        setProgress(data);
+        // 合并而不是整体替换：并非每条推送都带齐所有字段（失败推送就没有
+        // current/total），整体替换会把它们变成 undefined，直接渲染成
+        // “目前搜索到 undefined 条”。
+        setProgress((prev) => ({ ...prev, ...data }));
         if (data.status === "completed") {
           socket.close();
           loadDashboard();
@@ -250,11 +255,13 @@ export function ResultPage() {
                   {!isFinished && <span className="dot-pulse" />} {label}
                 </strong>
                 <span className="text-muted small">
-                  {progress.status === "completed" && progress.raw_total
-                    ? `搜索到 ${progress.raw_total} 条，采集 ${progress.current} 条`
+                  {progress.status === "failed"
+                    ? ""
+                    : progress.status === "completed" && progress.raw_total
+                    ? `搜索到 ${progress.raw_total} 条，采集 ${progress.current ?? 0} 条`
                     : (progress.status === "analyzing" || progress.status === "wordcloud" || progress.status === "llm") && progress.raw_total
-                    ? `搜索到 ${progress.raw_total} 条，保留 ${progress.current} 条`
-                    : `目前搜索到 ${progress.current} 条`}
+                    ? `搜索到 ${progress.raw_total} 条，保留 ${progress.current ?? 0} 条`
+                    : `目前搜索到 ${progress.current ?? 0} 条`}
                 </span>
               </div>
               <div className="progress progress-tall">
@@ -303,6 +310,15 @@ export function ResultPage() {
                 <StatCard label="关键词" value={summary.keyword || "-"} />
                 <StatCard label="数据源" value={platformLabel(summary.platform)} />
               </div>
+
+              {/* 样本构成：多源聚合时才有意义 */}
+              <SourceMix stats={summary.source_stats} />
+
+              {/* 搜索引擎检索结果（背景资料，不计入情感分析） */}
+              <SearchResultsCard
+                results={summary.search_results}
+                status={summary.search_status}
+              />
 
               {/* 原帖 / 原视频 */}
               {summary.source_items && summary.source_items.length > 0 && (
@@ -411,6 +427,132 @@ function StatCard({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+/** 搜索引擎检索结果。
+ *
+ * 与"原帖/原视频"分开成卡：那些是评论的出处，而这些是事件背景资料，
+ * 不参与情感分析。标题上明确写出来，免得把两者当成同一类数据看。
+ */
+function SearchResultsCard({
+  results,
+  status,
+}: {
+  results?: SearchResult[];
+  status?: SearchProviderStatus[];
+}) {
+  const items = results || [];
+  const failed = (status || []).filter((s) => !s.ok);
+  if (items.length === 0 && failed.length === 0) return null;
+
+  return (
+    <div className="card border-0 shadow-sm mb-3">
+      <div className="card-body p-4">
+        <h5 className="card-title fw-bold mb-1">
+          <i className="bi bi-search me-2" />搜索引擎结果
+        </h5>
+        <div className="text-muted small mb-3">
+          作为事件背景提供给模型，不计入情感分析
+        </div>
+
+        {failed.length > 0 && (
+          <div className="alert alert-warning py-2 px-3 small mb-3">
+            {failed.map((s) => (
+              <div key={s.provider}>
+                {s.label}：{s.message}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <ol className="list-unstyled mb-0">
+          {items.map((item) => (
+            <li key={`${item.source}-${item.rank}-${item.url}`} className="mb-3">
+              <div className="d-flex align-items-start gap-2">
+                <span className="badge bg-secondary flex-shrink-0">
+                  {platformLabel(item.source)} #{item.rank}
+                </span>
+                <div className="min-w-0">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="fw-semibold d-block text-break"
+                  >
+                    {item.title}
+                  </a>
+                  {item.snippet && (
+                    <div className="text-muted small mt-1 text-break">{item.snippet}</div>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+/** 各来源在本次样本里的占比。
+ *
+ * 聚合搜索最容易出问题的地方是"五源"其实几乎全来自一个平台——总数
+ * 看不出来，情感分布却已经变成了那个平台的分布。单源任务构成是平凡的，
+ * 所以只在真的有多个来源时才渲染。
+ */
+function SourceMix({ stats }: { stats?: Record<string, number> }) {
+  const entries = Object.entries(stats || {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (entries.length < 2) return null;
+  const total = entries.reduce((sum, [, n]) => sum + n, 0);
+
+  return (
+    <div className="card border-0 shadow-sm mb-3">
+      <div className="card-body p-4">
+        <h5 className="card-title fw-bold mb-1">样本构成</h5>
+        <div className="text-muted small mb-3">
+          采集阶段各来源贡献的原始条数（去重、清洗前），共 {total} 条
+        </div>
+        <div className="progress mb-3" style={{ height: 10 }} role="img"
+             aria-label={entries.map(([p, n]) => `${platformLabel(p)} ${n} 条`).join("，")}>
+          {entries.map(([platform, n], i) => (
+            <div
+              key={platform}
+              className={"progress-bar " + SOURCE_MIX_CLASSES[i % SOURCE_MIX_CLASSES.length]}
+              style={{ width: (n / total) * 100 + "%" }}
+              title={`${platformLabel(platform)} ${n} 条`}
+            />
+          ))}
+        </div>
+        <div className="d-flex flex-wrap gap-3">
+          {entries.map(([platform, n], i) => (
+            <div key={platform} className="d-flex align-items-center small">
+              <span
+                className={
+                  "d-inline-block rounded me-2 " +
+                  SOURCE_MIX_CLASSES[i % SOURCE_MIX_CLASSES.length]
+                }
+                style={{ width: 10, height: 10 }}
+              />
+              <span className="fw-semibold me-1">{platformLabel(platform)}</span>
+              <span className="text-muted">
+                {n} 条 · {((n / total) * 100).toFixed(0)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SOURCE_MIX_CLASSES = [
+  "bg-primary",
+  "bg-success",
+  "bg-warning",
+  "bg-info",
+  "bg-secondary",
+];
 
 function SourceCard({ items }: { items: SourceItem[] }) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);

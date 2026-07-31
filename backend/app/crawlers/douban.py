@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 from typing import AsyncIterator
 
 from app.crawlers.base import BaseCrawler, PingResult, ProgressCallback
@@ -32,6 +33,10 @@ class DoubanCrawler(BaseCrawler):
     # 每个条目最多翻的页数（每页 20 条）
     MAX_PAGES_PER_SUBJECT = 8
     PAGE_SIZE = 20
+    # 同时抓几个条目。串行时"8 页 × 约 1s 停顿 × 5 个条目"能逼近一分钟，
+    # 在聚合搜索里会直接撞上单源时限；并发 3 个条目把墙钟时间压到约 1/3，
+    # 同时每页之间的 polite_sleep 保持不变，不额外加大对豆瓣的压力。
+    SUBJECT_CONCURRENCY = 3
 
     def _extra_headers(self, *, referer: str | None = None) -> dict[str, str]:
         """rexxar 接口强依赖 m.douban.com 的 Referer，缺失会被拒绝"""
@@ -78,40 +83,27 @@ class DoubanCrawler(BaseCrawler):
             await polite_sleep(0.3, 0.8)
         return subjects[:limit]
 
-    async def _fetch_comments(
-        self,
-        client,
-        subject: dict,
-        target: int,
-        collected: int,
-    ) -> list[str]:
-        """分页抓取一个条目的公开短评"""
-        comments: list[str] = []
+    async def _fetch_page(self, client, subject: dict, page: int) -> list[str]:
+        """抓取一个条目的第 page 页公开短评（0 起），无更多内容返回空列表"""
         url = self.INTERESTS_URL.format(kind=subject["kind"], sid=subject["sid"])
         referer = f"https://m.douban.com/{subject['kind']}/subject/{subject['sid']}/"
-        for page in range(self.MAX_PAGES_PER_SUBJECT):
-            if collected + len(comments) >= target:
-                break
-            payload = await fetch_json(
-                client,
-                url,
-                params={
-                    "count": self.PAGE_SIZE,
-                    "start": page * self.PAGE_SIZE,
-                    "order_by": "hot",
-                },
-                headers=self._extra_headers(referer=referer),
-            )
-            if not payload:
-                break
-            interests = payload.get("interests") or []
-            if not interests:
-                break
-            for entry in interests:
-                text = (entry.get("comment") or "").replace("\n", " ").strip()
-                if text:
-                    comments.append(text)
-            await polite_sleep(0.6, 1.4)
+        payload = await fetch_json(
+            client,
+            url,
+            params={
+                "count": self.PAGE_SIZE,
+                "start": page * self.PAGE_SIZE,
+                "order_by": "hot",
+            },
+            headers=self._extra_headers(referer=referer),
+        )
+        if not payload:
+            return []
+        comments: list[str] = []
+        for entry in payload.get("interests") or []:
+            text = (entry.get("comment") or "").replace("\n", " ").strip()
+            if text:
+                comments.append(text)
         return comments
 
     async def fetch(
@@ -139,20 +131,42 @@ class DoubanCrawler(BaseCrawler):
                     "display_type": "post",
                 })
             collected = 0
-            for subject in subjects[:5]:
-                if collected >= target_count:
+            # 按"页"横向推进而不是按"条目"纵向推进：先把所有条目的第 1 页
+            # 拿到手就先吐出去，再去翻第 2 页。
+            #
+            # 早先是一个条目连翻 8 页、攒齐才 return，首批数据要等
+            # 8 × polite_sleep ≈ 7s 以上才出现；在聚合搜索里这刚好越过
+            # FIRST_BATCH_TIMEOUT，豆瓣于是被当成"没响应的源"整个丢掉——
+            # 明明单独跑能稳定拿到几百条。横向推进后首批约 1s 就能出来。
+            active = subjects[:5]
+            for page in range(self.MAX_PAGES_PER_SUBJECT):
+                if collected >= target_count or not active:
                     break
                 await progress_cb(
                     collected,
-                    f"豆瓣：抓取「{subject['title']}」短评... 已收集 {collected} 条",
+                    f"豆瓣：抓取 {len(active)} 个条目的第 {page + 1} 页短评..."
+                    f" 已收集 {collected} 条",
                 )
-                batch = await self._fetch_comments(
-                    client, subject, target_count, collected
-                )
-                if not batch:
-                    continue
-                collected += len(batch)
-                yield batch
+                batch: list[str] = []
+                still_active: list[dict] = []
+                for start in range(0, len(active), self.SUBJECT_CONCURRENCY):
+                    group = active[start:start + self.SUBJECT_CONCURRENCY]
+                    results = await asyncio.gather(
+                        *(self._fetch_page(client, s, page) for s in group),
+                        return_exceptions=True,
+                    )
+                    for subject, result in zip(group, results):
+                        if isinstance(result, Exception) or not result:
+                            # 该条目已翻完或本页失败，后续页不再尝试
+                            continue
+                        still_active.append(subject)
+                        batch.extend(result)
+                active = still_active
+                if batch:
+                    collected += len(batch)
+                    yield batch
+                if active:
+                    await polite_sleep(0.6, 1.4)
             if collected == 0:
                 await progress_cb(collected, "豆瓣：条目命中但未读到公开短评")
 

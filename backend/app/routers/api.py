@@ -15,6 +15,7 @@ from app.config import DB_PATH, TOP_WORDS_GLOBAL, get_font_path
 from app.crawlers import source_health
 from app.hotspots import hotspot_service
 from app.llm_config_store import get_config as get_llm_config, update_config as update_llm_config
+from app.search import search_health
 from app.schemas import LLMChatRequest, LLMConfigPayload, LLMTestRequest, TaskRequest
 from app.tasks.manager import task_manager
 from app.analysis.llm_insight import (
@@ -185,10 +186,15 @@ async def get_source_health():
     才发现某个平台正在风控。
     """
     try:
-        items = await source_health()
+        crawlers, providers = await asyncio.gather(
+            source_health(), search_health()
+        )
     except Exception as exc:
         return _err(f"数据源探测失败: {exc}")
-    return _ok(items)
+    # 爬虫条目补上 kind，前端据此把"可选平台"与"检索增强"分开渲染；
+    # 搜索 provider 不是可选平台，不能混进平台下拉框。
+    items = [{**item, "kind": item.get("kind", "crawler")} for item in crawlers]
+    return _ok(items + list(providers))
 
 
 @router.get("/result/{task_id}/summary")
