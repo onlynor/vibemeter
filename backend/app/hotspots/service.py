@@ -68,7 +68,9 @@ class HotspotService:
         现已改成 ``<!--s-data:...-->`` 注释 + hotList 卡片，这里按新结构解析。
         """
         url = "https://top.baidu.com/board?tab=realtime"
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=8.0, follow_redirects=True, trust_env=False
+        ) as client:
             response = await client.get(url, headers={"User-Agent": _UA})
             response.raise_for_status()
         payload = _extract_baidu_payload(response.text)
@@ -97,7 +99,9 @@ class HotspotService:
     async def _fetch_weibo(self) -> list[dict[str, Any]]:
         """微博实时热搜（该接口现在强制校验 Referer，缺失会 403）"""
         url = "https://weibo.com/ajax/side/hotSearch"
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=8.0, follow_redirects=True, trust_env=False
+        ) as client:
             response = await client.get(
                 url,
                 headers={
@@ -126,7 +130,9 @@ class HotspotService:
     async def _fetch_bilibili(self) -> list[dict[str, Any]]:
         """B站热搜词（匿名可读，无需签名）"""
         url = "https://api.bilibili.com/x/web-interface/wbi/search/square"
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=8.0, follow_redirects=True, trust_env=False
+        ) as client:
             response = await client.get(
                 url,
                 params={"limit": PER_SOURCE_LIMIT},
@@ -157,7 +163,9 @@ class HotspotService:
     async def _fetch_zhihu(self) -> list[dict[str, Any]]:
         """知乎热榜（api.zhihu.com 匿名可读，网页端 v3 接口则需登录）"""
         url = "https://api.zhihu.com/topstory/hot-lists/total"
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=8.0, follow_redirects=True, trust_env=False
+        ) as client:
             response = await client.get(
                 url,
                 params={"limit": PER_SOURCE_LIMIT},

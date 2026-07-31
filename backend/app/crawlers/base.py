@@ -69,6 +69,14 @@ class BaseCrawler(ABC):
         """返回抓取期间收集的源条目元数据"""
         return list(getattr(self, "_source_items", []))
 
+    def get_source_stats(self) -> dict[str, int]:
+        """本轮各来源贡献的评论条数
+
+        单平台爬虫的构成是平凡的（全部来自自己），返回空字典即可，
+        由上层按总数填充；只有 ``AutoCrawler`` 需要给出真实的多源占比。
+        """
+        return {}
+
     # 抓取与探活
 
     @abstractmethod

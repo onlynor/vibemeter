@@ -1,6 +1,7 @@
 """Comment cleaning, normalization, and deduplication."""
 from __future__ import annotations
 
+import html
 import re
 from typing import Iterable
 
@@ -26,6 +27,13 @@ _EMOJI_PATTERN = re.compile(
     flags=re.UNICODE,
 )
 
+# 残留的 HTML 标签。要求 < 之后是字母/斜杠/感叹号，这样 "3<5"、"<3"
+# 这类正常表达不会被误伤。
+_HTML_TAG_PATTERN = re.compile(r"<[a-zA-Z/!][^>]*>")
+# 内联图片等 data URI。贴吧、微博的富文本里会整段塞 base64，
+# 它不以 http 开头，_URL_PATTERN 抓不到；漏下去会被当成一条正常评论
+# 送进 SnowNLP，实测稳定打成 0.37 的“负向”，凭空拉低情感分布。
+_DATA_URI_PATTERN = re.compile(r"data:[\w.+-]+/[\w.+-]+;base64,[A-Za-z0-9+/=]*")
 _URL_PATTERN = re.compile(r"https?://\S+|www\.\S+")
 _MENTION_PATTERN = re.compile(r"@[^\s@:：，,。.！!？?]+")
 _HASHTAG_PATTERN = re.compile(r"#[^#]+#")
@@ -54,6 +62,11 @@ def clean_comment(text: str) -> str:
     """去除评论中的噪音（链接、@、话题、表情、重复字符）"""
     if not text:
         return ""
+    # 先反转义再剥标签：有些接口把正文以 &lt;img ...&gt; 的形式返回，
+    # 不反转义的话标签正则匹配不到，base64 照样会漏进分析。
+    text = html.unescape(text)
+    text = _HTML_TAG_PATTERN.sub(" ", text)
+    text = _DATA_URI_PATTERN.sub("", text)
     text = _REPLY_PREFIX_PATTERN.sub("", text)
     text = _URL_PATTERN.sub("", text)
     text = _MENTION_PATTERN.sub("", text)

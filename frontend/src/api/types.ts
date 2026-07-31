@@ -17,6 +17,8 @@ export type Platform =
 export interface SourceHealth {
   platform: Platform | string;
   label: string;
+  /** crawler = 可选的采集平台；search = 检索增强的搜索引擎，不进平台下拉框 */
+  kind?: "crawler" | "search";
   ok: boolean;
   message: string;
   /** 该平台可选 Cookie 对应的环境变量名，无则为空串 */
@@ -106,6 +108,25 @@ export interface LLMInsight {
   context_format?: string;
 }
 
+/** 各搜索引擎统一的结果模型，与后端 app.search.base.SearchResult 对应 */
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  /** provider 名称，如 baidu */
+  source: string;
+  /** 在该 provider 自身结果中的名次，从 1 起；跨 provider 不可比 */
+  rank: number;
+}
+
+export interface SearchProviderStatus {
+  provider: string;
+  label: string;
+  ok: boolean;
+  count: number;
+  message: string;
+}
+
 export interface Summary {
   total: number;
   raw_total?: number;
@@ -113,6 +134,11 @@ export interface Summary {
   keyword?: string;
   platform: Platform;
   source_items?: SourceItem[];
+  /** 采集阶段各来源贡献的条数（去重前、清洗前），聚合搜索下用于判断样本构成 */
+  source_stats?: Record<string, number>;
+  /** 搜索引擎检索结果：仅作背景资料与展示，不参与情感分析 */
+  search_results?: SearchResult[];
+  search_status?: SearchProviderStatus[];
   top_positive?: CommentItem[];
   top_negative?: CommentItem[];
   positive: number;

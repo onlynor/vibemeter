@@ -232,11 +232,20 @@ class ZhihuCrawler(BaseCrawler):
                     "embed_url": "",
                     "display_type": "post",
                 })
-            batch = [item["title"] for item in hot_items]
-            batch.extend(item["excerpt"] for item in hot_items if item["excerpt"])
+            # 只取回答摘要，不取热榜标题：标题是问句或事件名（"X 事件为何发生？"），
+            # 是话题本身而非对话题的观点。把它们当评论喂进 SnowNLP，会以中性分
+            # 稀释真实的情感分布，让结论偏向"中立"——采集量越小失真越明显。
+            batch = [item["excerpt"] for item in hot_items if item["excerpt"]]
+            if not batch:
+                await progress_cb(
+                    collected,
+                    f"知乎：热榜命中 {len(hot_items)} 条话题但均无摘要正文"
+                    "（配置 ZHIHU_COOKIE 可开启回答与评论搜索）",
+                )
+                return
             await progress_cb(
                 collected,
-                f"知乎：热榜命中 {len(hot_items)} 条相关话题",
+                f"知乎：热榜命中 {len(hot_items)} 条相关话题，取到 {len(batch)} 条摘要正文",
             )
             yield batch
 

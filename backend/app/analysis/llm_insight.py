@@ -72,6 +72,22 @@ def _as_xml(summary: dict[str, Any]) -> str:
         f'    <word count="{count}">{_safe_text(word)}</word>'
         for word, count in summary.get("top_negative_words", [])[:8]
     ) or "    <word count=\"0\">暂无</word>"
+    search_items = "\n".join(
+        f'    <result rank="{item.get("rank", 0)}" source="{_safe_text(item.get("source"))}">\n'
+        f'      <title>{_safe_text(item.get("title"))}</title>\n'
+        f'      <url>{_safe_text(item.get("url"))}</url>\n'
+        f'      <snippet>{_safe_text(item.get("snippet"))}</snippet>\n'
+        f'    </result>'
+        for item in summary.get("search_results", [])[:10]
+    )
+    # 检索结果是背景资料，与评论区分开放：评论代表网友观点，检索结果代表
+    # 事件事实。模型若把两者混为一谈，容易把新闻标题当成"网友的看法"。
+    search_block = (
+        "  <web_search_context>\n"
+        f"{search_items}\n"
+        "  </web_search_context>\n"
+    ) if search_items else ""
+
     return (
         "<analysis_context>\n"
         f"  <keyword>{_safe_text(summary.get('keyword'))}</keyword>\n"
@@ -94,6 +110,7 @@ def _as_xml(summary: dict[str, Any]) -> str:
         "  <representative_negative_comments>\n"
         f"{neg_comments}\n"
         "  </representative_negative_comments>\n"
+        f"{search_block}"
         "</analysis_context>"
     )
 
@@ -127,6 +144,15 @@ def _as_markdown(summary: dict[str, Any]) -> str:
         [f"- ({item['score']}) {item['text']}" for item in summary.get("top_negative", [])[:3]]
         or ["- 暂无"]
     )
+    search_results = summary.get("search_results", [])[:10]
+    if search_results:
+        # 单独成节并标注"背景资料"，避免模型把新闻标题当成网友观点
+        lines.extend(["", "## 搜索引擎背景资料（非网友观点）"])
+        lines.extend(
+            f"- [{item.get('source', '')}] {item.get('title', '')} — "
+            f"{item.get('snippet', '')} ({item.get('url', '')})"
+            for item in search_results
+        )
     return "\n".join(lines)
 
 
@@ -176,7 +202,7 @@ async def generate_insight(
         ],
     }
 
-    async with httpx.AsyncClient(timeout=40.0) as client:
+    async with httpx.AsyncClient(timeout=40.0, trust_env=False) as client:
         response = await client.post(endpoint, headers=headers, json=payload)
         response.raise_for_status()
         data = response.json()
@@ -227,7 +253,7 @@ async def ping_llm(base_url: str, api_key: str, model: str) -> tuple[bool, str]:
         ],
     }
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=20.0, trust_env=False) as client:
             response = await client.post(
                 _resolve_endpoint(base_url),
                 headers=_auth_headers(api_key),
@@ -301,7 +327,7 @@ async def chat_with_context(
         "messages": messages,
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
         response = await client.post(
             _resolve_endpoint(base_url),
             headers=_auth_headers(api_key),
@@ -365,7 +391,9 @@ async def chat_with_context_stream(
         "messages": messages,
     }
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, read=None)) as client:
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(60.0, read=None), trust_env=False
+    ) as client:
         async with client.stream(
             "POST",
             _resolve_endpoint(base_url),
