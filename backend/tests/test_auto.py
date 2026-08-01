@@ -135,6 +135,70 @@ async def test_all_sources_fail():
     raise AssertionError("expected RuntimeError")
 
 
+async def test_emits_as_soon_as_every_source_has_settled():
+    """All sources answered fast -> don't sit on the data until the timeout.
+
+    The gate used to be purely time-based, so a run where every source replied
+    in 50ms still showed a frozen progress bar for the full FIRST_BATCH_TIMEOUT.
+    """
+    sources = [
+        FakeCrawler(name, name, [[f"{name}{i}" for i in range(20)]])
+        for name in ("douban", "bilibili", "tieba")
+    ]
+    a = make_auto(sources)
+    t0 = time.time()
+    first_batch_at = None
+    async def cb(cur, msg=""):
+        pass
+    async for _batch in a.fetch("kw", 30, cb):
+        if first_batch_at is None:
+            first_batch_at = time.time() - t0
+    print(f"  first batch after {first_batch_at:.3f}s (gate={auto_mod.FIRST_BATCH_TIMEOUT}s)")
+    assert first_batch_at is not None
+    assert first_batch_at < auto_mod.FIRST_BATCH_TIMEOUT / 2, first_batch_at
+    print("  early-gate OK")
+
+
+async def test_stalled_source_still_bounded_by_time_gate():
+    """One source that neither yields nor fails must not hold the gate shut."""
+    class Hanger(FakeCrawler):
+        async def fetch(self, keyword, target_count, progress_cb):
+            await asyncio.sleep(3600)
+            yield []
+
+    good = FakeCrawler("douban", "豆瓣", [[f"d{i}" for i in range(20)]])
+    a = make_auto([good, Hanger("weibo", "微博", [])])
+    t0 = time.time()
+    out = await collect(a, 20)
+    elapsed = time.time() - t0
+    print(f"  got {len(out)} in {elapsed:.2f}s")
+    assert len(out) == 20, len(out)
+    assert elapsed >= auto_mod.FIRST_BATCH_TIMEOUT, "time gate skipped entirely"
+    assert elapsed < auto_mod.FIRST_BATCH_TIMEOUT + 2, elapsed
+    print("  time-gate fallback OK")
+
+
+async def test_platform_subset():
+    """AutoCrawler(platforms=[...]) must really only start those sources."""
+    a = auto_mod.AutoCrawler(["tieba", "douban"])
+    print(f"  subset -> {a.platforms}")
+    # 顺序按 PLATFORM_ORDER 归一，不随调用方传参顺序变化
+    assert a.platforms == ["douban", "tieba"], a.platforms
+
+    # 未知名字忽略而不是报错
+    assert auto_mod.AutoCrawler(["douban", "nonexistent"]).platforms == ["douban"]
+    # None / 空 = 全部，保持旧行为
+    assert auto_mod.AutoCrawler().platforms == list(auto_mod.AutoCrawler.PLATFORM_ORDER)
+    assert auto_mod.AutoCrawler([]).platforms == list(auto_mod.AutoCrawler.PLATFORM_ORDER)
+    assert auto_mod.AutoCrawler(["nope"]).platforms == list(auto_mod.AutoCrawler.PLATFORM_ORDER)
+
+    from app.crawlers import get_crawler
+    assert get_crawler("auto", ["zhihu"]).platforms == ["zhihu"]
+    # 单平台任务传了 platforms 也不该出错
+    assert get_crawler("douban", ["zhihu"]).name == "douban"
+    print("  platform subset OK")
+
+
 async def test_source_items_still_collected():
     a1 = FakeCrawler("douban", "豆瓣", [["a"]])
     a2 = FakeCrawler("bilibili", "B站", [["b"]])
@@ -150,6 +214,9 @@ async def main():
     for fn in (
         test_balance, test_dedup, test_dead_source_does_not_hang,
         test_slow_paginator_bounded_by_deadline, test_all_sources_fail,
+        test_emits_as_soon_as_every_source_has_settled,
+        test_stalled_source_still_bounded_by_time_gate,
+        test_platform_subset,
         test_source_items_still_collected,
     ):
         print(f"{fn.__name__}:")

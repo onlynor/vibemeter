@@ -40,6 +40,8 @@ _HASHTAG_PATTERN = re.compile(r"#[^#]+#")
 # 微博风格表情，如 [二哈] 或 [doge]
 _WEIBO_EMOJI_PATTERN = re.compile(r"\[[^\[\]]{1,10}\]")
 _REPLY_PREFIX_PATTERN = re.compile(r"^回复\s*[^:：]{0,30}[:：]\s*")
+# 近似去重用：抹掉空白与标点。\W 在 re.UNICODE 下不会误伤中文。
+_DEDUP_STRIP_PATTERN = re.compile(r"[\s\W_]+", re.UNICODE)
 
 # 饭圈噪音过滤：短评论中含这些词的视为噪音
 _FAN_CIRCLE_WORDS: set[str] = {
@@ -47,6 +49,18 @@ _FAN_CIRCLE_WORDS: set[str] = {
     "哥哥好", "宝贝", "崽崽", "乖乖", "亲亲", "么么",
     "心动", "好帅", "好美", "好帅啊", "好美啊",
 }
+
+# 引流 / 广告评论。判定刻意要求"动作 + 渠道"同时出现：光有"微信"两个字的
+# 是正常讨论（"微信支付很方便"），把它当广告删掉会真的改变情感分布，
+# 而"加微信""扫码进群"这种组合在评论区里几乎不存在正常用法。
+_PROMO_PATTERNS: list[re.Pattern] = [
+    re.compile(r"(?:加|扫|搜|私)\s*(?:我|一?下)?\s*(?:微信|weixin|vx|v信|威信|QQ|qq|Q Q)"),
+    re.compile(r"(?:微信|QQ|qq|vx|VX)\s*(?:号)?\s*[:：]\s*[A-Za-z0-9_-]{5,}"),
+    re.compile(r"(?:扫码|长按)\s*(?:进群|加群|关注|领取)"),
+    re.compile(r"私信我?\s*(?:领|拿|发|要|获取)"),
+    re.compile(r"(?:点击|戳)\s*(?:链接|下方|主页|简介)"),
+    re.compile(r"(?:代刷|刷单|日结|包邮|一手货源|带你上岸)"),
+]
 
 # 微博界面文字噪音
 _WEIBO_UI_NOISE: list[re.Pattern] = [
@@ -88,9 +102,24 @@ def _is_fan_circle_noise(text: str) -> bool:
     return any(word in text for word in _FAN_CIRCLE_WORDS)
 
 
+def _is_promo(text: str) -> bool:
+    """判断是否为引流 / 广告评论"""
+    return any(pattern.search(text) for pattern in _PROMO_PATTERNS)
+
+
 def _collapse_repeats(text: str) -> str:
     """将连续 3 个以上相同字符压缩为 1 个"""
     return re.sub(r"(.)\1{2,}", r"\1", text)
+
+
+def dedup_key(text: str) -> str:
+    """近似重复的判定键：抹掉所有空白与标点后比对
+
+    只按完整字符串去重的话，"太好了！""太好了。""太好了 "会各占一条。
+    水军和转发把同一句话配不同标点刷几十遍是常态，这些重复项会在情感
+    分布里被重复计数，看上去像"大量网友持相同观点"。
+    """
+    return _DEDUP_STRIP_PATTERN.sub("", text).lower()
 
 
 def is_meaningful(text: str) -> bool:
@@ -111,8 +140,11 @@ def preprocess_comments(comments: Iterable[str]) -> list[str]:
             continue
         if _is_fan_circle_noise(cleaned):
             continue
-        if cleaned in seen:
+        if _is_promo(cleaned):
             continue
-        seen.add(cleaned)
+        key = dedup_key(cleaned)
+        if key in seen:
+            continue
+        seen.add(key)
         out.append(cleaned)
     return out

@@ -13,12 +13,14 @@
 3. **跨源去重**：热点内容常被多平台转载，早期这些重复项会先占满配额，
    等 ``preprocess_comments`` 再去重时样本已经缩水了。现在在收集阶段
    就按归一化文本去重，配额只留给真正不同的内容。
+4. **可限定子集**：``AutoCrawler(platforms=[...])`` 只启动指定的源，
+   前端的数据源多选因此是真生效的，而不是"勾了也照样五个源全跑"。
 """
 from __future__ import annotations
 
 import asyncio
 from collections import deque
-from typing import AsyncIterator, Callable
+from typing import AsyncIterator, Sequence
 
 from app.crawlers.base import BaseCrawler, ProgressCallback
 from app.crawlers.bilibili import BilibiliCrawler
@@ -77,7 +79,21 @@ async def _drain_source(
     deadline = loop.time() + SOURCE_DEADLINE
     agen = crawler.fetch(keyword, target_count, progress_cb)
     got_first_batch = False
+    settled = False
     emitted_source_urls: set[str] = set()
+
+    def settle() -> None:
+        """告诉消费者"这个源已有定论"（拿到首批 或 判定不可用）
+
+        用 put_nowait：队列无界，不会阻塞，也就不会在取消路径上多出一个
+        可被打断的 await 点。
+        """
+        nonlocal settled
+        if settled:
+            return
+        settled = True
+        result_queue.put_nowait(("settled", crawler.name, None))
+
     try:
         while True:
             remaining = deadline - loop.time()
@@ -88,16 +104,18 @@ async def _drain_source(
             budget = remaining if got_first_batch else min(FIRST_BATCH_TIMEOUT, remaining)
             batch = await asyncio.wait_for(agen.__anext__(), timeout=budget)
             got_first_batch = True
+            settle()
             await _flush_source_items(crawler, result_queue, emitted_source_urls)
             if not batch:
                 continue
             await result_queue.put(("batch", crawler.name, batch))
     except StopAsyncIteration:
-        pass
+        settle()
     except asyncio.CancelledError:
         # 配额已满时由消费者主动取消，属正常路径，不记为失败
         raise
     except asyncio.TimeoutError:
+        settle()
         if got_first_batch:
             failures.append(f"{label}: 翻页阶段超时")
         else:
@@ -107,9 +125,12 @@ async def _drain_source(
                 f"{label} 在 {FIRST_BATCH_TIMEOUT:.0f}s 内未返回数据，已跳过",
             )
     except Exception as exc:
+        settle()
         failures.append(f"{label}: {exc}")
         await progress_cb(0, f"{label} 暂不可用（{exc}），已跳过")
     finally:
+        # 走到这里无论成败都已有定论；break 出循环（超时限）也要放行闸门
+        settle()
         try:
             await agen.aclose()
         except Exception:
@@ -132,15 +153,32 @@ class AutoCrawler(BaseCrawler):
     # 原帖列表展示上限
     MAX_SOURCE_ITEMS: int = 10
 
-    def __init__(self) -> None:
-        self._sources: list[BaseCrawler] = [
-            BilibiliCrawler(),
-            WeiboCrawler(),
-            DoubanCrawler(),
-            ZhihuCrawler(),
-            TiebaCrawler(),
-        ]
+    SOURCE_CLASSES: dict[str, type[BaseCrawler]] = {
+        "bilibili": BilibiliCrawler,
+        "weibo": WeiboCrawler,
+        "douban": DoubanCrawler,
+        "zhihu": ZhihuCrawler,
+        "tieba": TiebaCrawler,
+    }
+
+    def __init__(self, platforms: Sequence[str] | None = None) -> None:
+        """``platforms`` 限定本轮只跑哪几个源，None / 空表示全部
+
+        前端的数据源多选此前只能折叠成"单选某个源"或"全都跑"，勾掉一个平台
+        并不会真的不去抓它。这里接受子集后那个多选才名副其实。未知名字直接
+        忽略而不是报错：调用方可能来自更新过的前端，多传一个源不该让整轮采集
+        失败。
+        """
+        wanted = [p for p in (platforms or []) if p in self.SOURCE_CLASSES]
+        # 保持 PLATFORM_ORDER 的顺序，轮转与原帖展示的次序才稳定
+        names = [p for p in self.PLATFORM_ORDER if p in wanted] or list(self.PLATFORM_ORDER)
+        self._sources: list[BaseCrawler] = [self.SOURCE_CLASSES[n]() for n in names]
         self._stats: dict[str, int] = {}
+
+    @property
+    def platforms(self) -> list[str]:
+        """本实例实际启用的采集源"""
+        return [c.name for c in self._sources]
 
     def get_source_stats(self) -> dict[str, int]:
         """返回本轮各来源实际贡献的评论条数
@@ -263,6 +301,7 @@ class AutoCrawler(BaseCrawler):
         loop = asyncio.get_running_loop()
         started = loop.time()
 
+        settled = 0
         try:
             while emitted < target_count:
                 kind, platform, payload = await result_queue.get()
@@ -270,6 +309,9 @@ class AutoCrawler(BaseCrawler):
                     break
                 if kind == "source_item":
                     self.record_source_item(payload)
+                    continue
+                if kind == "settled":
+                    settled += 1
                     continue
                 # kind == "batch"
                 for text in payload:
@@ -282,9 +324,12 @@ class AutoCrawler(BaseCrawler):
 
                 # 轮转只有在"每个还活着的源都已有机会填过桶"之后才是公平的：
                 # 抢跑的源若在别人首批返回前就把缓冲区掏空，均衡就白做了。
-                # ``_drain_source`` 保证每个源要么在 FIRST_BATCH_TIMEOUT 内
-                # 给出首批、要么被判失败，所以过了这个点开闸即可。
-                if loop.time() - started < FIRST_BATCH_TIMEOUT:
+                #
+                # 开闸条件是"所有源都已有定论"，而不是死等满 FIRST_BATCH_TIMEOUT：
+                # 各源都在 1s 内返回时，按时间等就是白白多花 7s 才推出第一批，
+                # 前端的进度条也就卡在 0 不动。时间上限只作为兜底——万一某个源
+                # 既不产出也不抛错（比如 TCP 连接挂住），闸门不能永远关着。
+                if settled < len(self._sources) and loop.time() - started < FIRST_BATCH_TIMEOUT:
                     continue
                 if buffered < EMIT_CHUNK:
                     continue
