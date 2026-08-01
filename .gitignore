@@ -20,15 +20,11 @@ backend/.env
 .vscode/
 .idea/
 
-# AI agent 配置与说明文件（仅本地使用，不随仓库分发）
+# AI agent
 .claude/
-CLAUDE.md
-AGENTS.md
-GEMINI.md
-.cursorrules
-.cursor/
-.aider*
-.github/copilot-instructions.md
+
+*.md
+!README.md
 
 # 文档与杂项
 docs/

@@ -15,7 +15,7 @@
 **1. 配 Cookie（可选）**
 
 ```bash
-cp .env.example .env     # 生效的是 .env，填在 .env.example 里没用
+cp .env.example .env     
 ```
 
 全留空也能跑：豆瓣、贴吧、B 站匿名可用；微博和知乎必须配 Cookie。
