@@ -46,6 +46,10 @@ export interface TaskRequest {
   keyword: string;
   platform: Platform;
   count: number;
+  /** platform=auto 时限定实际启动哪几个采集源；省略表示全部 */
+  platforms?: string[];
+  /** 启用哪些搜索引擎；空数组 = 关闭检索增强，省略 = 全部 */
+  search_providers?: string[];
   llm_base_url: string;
   llm_api_key: string;
   llm_model: string;

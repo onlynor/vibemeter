@@ -149,7 +149,7 @@ export function RecentTasks() {
                   <div className="text-danger small mt-1 text-truncate-2">{task.error}</div>
                 )}
               </div>
-              <div className="d-flex align-items-center gap-1 flex-shrink-0">
+              <div className="d-flex align-items-center gap-2 flex-shrink-0">
                 <Link
                   className="btn btn-sm btn-outline-primary"
                   to={"/result/" + task.task_id}
@@ -158,7 +158,7 @@ export function RecentTasks() {
                   查看
                 </Link>
                 <button
-                  className="btn btn-sm btn-outline-secondary"
+                  className="icon-btn"
                   type="button"
                   title="从本机列表中隐藏"
                   aria-label={"隐藏任务 " + task.keyword}
@@ -175,19 +175,17 @@ export function RecentTasks() {
   }
 
   return (
-    <div className="hotspot-card card border-0 shadow-sm h-100">
-      <div className="card-body p-4">
+    <div className="hotspot-card card h-100">
+      <div className="card-body">
         <div className="d-flex justify-content-between align-items-start gap-2 mb-3">
           <div>
-            <h4 className="fw-bold mb-0">
-              <i className="bi bi-clock-history text-primary me-2" />最近分析任务
-            </h4>
-            <div className="text-muted" style={{ fontSize: ".78rem" }}>
+            <h4 className="mb-0">最近分析任务</h4>
+            <div className="section-caption mt-1">
               服务端仅保留最近 10 个任务，重启后清空
             </div>
           </div>
           <button
-            className="btn btn-outline-secondary btn-sm"
+            className="icon-btn"
             type="button"
             title="刷新"
             aria-label="刷新任务列表"
