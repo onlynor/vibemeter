@@ -19,11 +19,51 @@ PingResult = tuple[bool, str]
 
 _WS_RE = re.compile(r"\s+")
 
+# 中日韩字符区间（含全角标点），用于识别"这个空格夹在两个汉字之间"
+_CJK = (
+    "⺀-〿"   # CJK 部首补充 + 中文标点
+    "㐀-䶿"   # 扩展 A
+    "一-鿿"   # 基本区
+    "豈-﫿"   # 兼容表意文字
+    "︰-﹏"   # CJK 兼容形式
+    "＀-￯"   # 全角字符
+)
+# 夹在两个汉字之间的空格。搜索引擎会把查询词包成 <strong>，节点文本一旦
+# 用带分隔符的方式取出来就会变成"小米汽车 （ 小米汽车 科技有限公司）"。
+# 中文本来不用空格分词，这类空格一律是标签边界的产物，删掉即可。
+_CJK_GAP_RE = re.compile(f"(?<=[{_CJK}])[ \t]+(?=[{_CJK}])")
+
+# 摘要里的时间前缀与快照后缀：对"这条结果讲了什么"没有信息量，
+# 却会占掉 LLM 上下文，还会让同一条新闻在不同引擎下看起来不一样。
+_SNIPPET_NOISE_RE = [
+    re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日\s*[·•\-—]?\s*"),
+    re.compile(r"^\d+\s*(?:秒|分钟|小时|天|周|个月|年)之?前\s*[·•\-—]?\s*"),
+    re.compile(r"\s*百度快照\s*$"),
+]
+
 
 def clean_text(value: object) -> str:
     """把节点文本压成单行，去掉零宽字符与多余空白"""
     text = str(value or "").replace("​", " ").replace("\xa0", " ")
-    return _WS_RE.sub(" ", text).strip()
+    text = _WS_RE.sub(" ", text).strip()
+    return _CJK_GAP_RE.sub("", text)
+
+
+def _node_text(node) -> str:
+    """取节点文本，且**不**在标签边界插入分隔符
+
+    ``get_text(" ")`` 会在每个子标签处插一个空格，而标题、摘要里几乎必然
+    有 ``<strong>关键词</strong>``，插出来的空格会把中文词切碎。这里按原文
+    拼接，真正的空白交给 ``clean_text`` 压平。
+    """
+    return clean_text(node.get_text())
+
+
+def strip_snippet_noise(text: str) -> str:
+    """去掉摘要首尾的时间戳、快照等模板文字"""
+    for pattern in _SNIPPET_NOISE_RE:
+        text = pattern.sub("", text)
+    return text.strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,13 +150,14 @@ def _extract_snippet(node, spec: ResultSpec, title_text: str) -> str:
     for selector in spec.snippet:
         found = node.select_one(selector)
         if found:
-            text = clean_text(found.get_text(" ", strip=True))
+            text = strip_snippet_noise(_node_text(found))
             if text:
                 return text
+    # 兜底路径跨越块级元素，这里反而需要分隔符，否则相邻段落会粘成一个词
     whole = clean_text(node.get_text(" ", strip=True))
     if title_text and whole.startswith(title_text):
         whole = whole[len(title_text):]
-    return clean_text(whole)
+    return strip_snippet_noise(clean_text(whole))
 
 
 def _is_ad(node, href: str, spec: ResultSpec) -> bool:
@@ -146,9 +187,7 @@ def parse_results(html: str, spec: ResultSpec, source: str, limit: int) -> list[
             continue
 
         title_node = node.select_one(spec.title)
-        title_text = clean_text(
-            (title_node or link).get_text(" ", strip=True)
-        )
+        title_text = _node_text(title_node or link)
 
         url = href
         if spec.real_url_attr:

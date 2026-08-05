@@ -13,8 +13,9 @@ from pathlib import Path
 
 
 TESTS = [
-    "test_search.py",          # 检索层：解析 / 模型 / 注册 / 聚合
-    "test_auto.py",            # 聚合爬虫：均衡、去重、超时、取消
+    "test_search.py",          # 检索层：解析 / 模型 / 注册 / 聚合 / 跨源去重
+    "test_preprocess.py",      # 评论清洗：标记剥离、近似去重、广告过滤
+    "test_auto.py",            # 聚合爬虫：均衡、去重、超时、子集、取消
     "test_sources.py",         # 豆瓣 / 贴吧 抓取流程
     "test_pipeline.py",        # TaskManager 全链路
     "test_search_pipeline.py", # 检索结果接入 summary 与 LLM 上下文

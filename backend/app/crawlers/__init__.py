@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Sequence
 
 from app.config import HOTSPOTS_CACHE_SECONDS
 from app.crawlers.auto import AutoCrawler
@@ -48,11 +49,17 @@ SUPPORTED_PLATFORMS = list(_REGISTRY.keys())
 PING_TIMEOUT: float = 25.0
 
 
-def get_crawler(platform: str) -> BaseCrawler:
-    """返回指定平台的爬虫实例"""
+def get_crawler(platform: str, platforms: Sequence[str] | None = None) -> BaseCrawler:
+    """返回指定平台的爬虫实例
+
+    ``platforms`` 只对 ``auto`` 有意义：限定聚合爬虫本轮启动哪几个源。
+    单平台任务传了也无害，直接忽略。
+    """
     cls = _REGISTRY.get(platform)
     if cls is None:
         raise ValueError(f"Unknown platform: {platform!r}")
+    if cls is AutoCrawler:
+        return AutoCrawler(platforms)
     return cls()
 
 

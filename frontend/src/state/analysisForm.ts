@@ -4,13 +4,17 @@ import type { LLMConfig, Platform, TaskRequest } from "../api/types";
 /**
  * 首页分析表单的集中状态。
  *
- * 后端 `POST /api/task` 目前只接受 keyword / platform / count / llm_*，
- * 因此这里的选项分两类，`backed` 字段就是这条界线：
+ * 这里的选项分两类，`backed` 字段就是这条界线：
  *
- * - **backed: true** —— 能映射到现有请求字段，真实生效（检索模式→采集量、
- *   数据源→platform、LLM 分析类型→llm_question 模板）。
+ * - **backed: true** —— 能映射到真实请求字段（检索模式→count、采集平台→
+ *   platform + platforms[]、检索源→search_providers[]、LLM 分析类型→
+ *   llm_question 模板）。
  * - **backed: false** —— 后端尚无对应能力，仅保存前端偏好，UI 上标注
  *   “前端预设”，不谎称已生效。见文件内 TODO(backend)。
+ *
+ * 数据源多选此前是 backed: false 的重灾区：后端只收单个 platform，勾掉一个
+ * 平台并不会真的不去抓它。现在 `POST /api/task` 接受 `platforms[]` 与
+ * `search_providers[]`，这两组勾选才名副其实。
  */
 
 const STORAGE_KEY = "vibe.home.form.v1";
@@ -65,21 +69,24 @@ export interface SourceMeta {
   kind: "crawler" | "search";
   /** 对应后端 platform 值；null 表示后端无此采集源 */
   platform: Platform | null;
+  /** 对应后端 search provider 的 name（app/search/*.py 里的 `name`） */
+  provider: string | null;
   backed: boolean;
   hint: string;
 }
 
 export const SOURCES: SourceMeta[] = [
-  { id: "weibo", label: "微博", icon: "bi-chat-quote", kind: "crawler", platform: "weibo", backed: true, hint: "需配置 Cookie" },
-  { id: "douban", label: "豆瓣", icon: "bi-film", kind: "crawler", platform: "douban", backed: true, hint: "影视 / 图书短评" },
-  { id: "tieba", label: "贴吧", icon: "bi-people", kind: "crawler", platform: "tieba", backed: true, hint: "匿名可用" },
-  { id: "bilibili", label: "B站", icon: "bi-play-btn", kind: "crawler", platform: "bilibili", backed: true, hint: "建议配 Cookie" },
-  { id: "zhihu", label: "知乎", icon: "bi-question-circle", kind: "crawler", platform: "zhihu", backed: true, hint: "需配置 Cookie" },
-  { id: "baidu_search", label: "百度搜索", icon: "bi-search", kind: "search", platform: null, backed: true, hint: "检索增强，始终启用" },
-  // TODO(backend): 以下检索源后端尚未实现 provider，勾选后仅保存偏好。
-  // 实现方式见 backend/app/search/README.md：新增一个 provider 文件即可。
-  { id: "news_search", label: "新闻搜索", icon: "bi-newspaper", kind: "search", platform: null, backed: false, hint: "待后端接入" },
-  { id: "github", label: "GitHub", icon: "bi-github", kind: "search", platform: null, backed: false, hint: "待后端接入" },
+  { id: "weibo", label: "微博", icon: "bi-chat-quote", kind: "crawler", platform: "weibo", provider: null, backed: true, hint: "需配置 Cookie" },
+  { id: "douban", label: "豆瓣", icon: "bi-film", kind: "crawler", platform: "douban", provider: null, backed: true, hint: "影视 / 图书短评" },
+  { id: "tieba", label: "贴吧", icon: "bi-people", kind: "crawler", platform: "tieba", provider: null, backed: true, hint: "匿名可用" },
+  { id: "bilibili", label: "B站", icon: "bi-play-btn", kind: "crawler", platform: "bilibili", provider: null, backed: true, hint: "建议配 Cookie" },
+  { id: "zhihu", label: "知乎", icon: "bi-question-circle", kind: "crawler", platform: "zhihu", provider: null, backed: true, hint: "需配置 Cookie" },
+  { id: "baidu_search", label: "百度搜索", icon: "bi-search", kind: "search", platform: null, provider: "baidu", backed: true, hint: "网页检索，覆盖面广" },
+  { id: "bing_search", label: "必应搜索", icon: "bi-globe2", kind: "search", platform: null, provider: "bing", backed: true, hint: "百度被限流时的兜底" },
+  // TODO(backend): 尚未实现对应 provider，勾选后仅保存偏好。
+  // 实现方式见 backend/app/search/README.md：新增一个 provider 文件即可，
+  // 注册表自动发现，不必改动这里之外的任何代码。
+  { id: "github", label: "GitHub", icon: "bi-github", kind: "search", platform: null, provider: null, backed: false, hint: "待后端接入" },
 ];
 
 export const RANKING_STRATEGIES: OptionMeta<RankingStrategy>[] = [
@@ -126,7 +133,7 @@ const DEFAULT_STATE: AnalysisFormState = {
   keyword: "",
   mode: "quick",
   count: 300,
-  sources: ["weibo", "douban", "tieba", "bilibili", "zhihu", "baidu_search"],
+  sources: ["weibo", "douban", "tieba", "bilibili", "zhihu", "baidu_search", "bing_search"],
   ranking: "diversity",
   sentimentEnabled: true,
   granularity: "polarity",
@@ -159,15 +166,18 @@ export function selectedCrawlerPlatforms(sources: string[]): Platform[] {
     .map((s) => s.platform as Platform);
 }
 
+/** 已启用的检索 provider（未接入的条目不会出现在这里） */
+export function selectedSearchProviders(sources: string[]): string[] {
+  return SOURCES
+    .filter((s) => s.kind === "search" && s.provider && sources.includes(s.id))
+    .map((s) => s.provider as string);
+}
+
 /**
- * 把多选来源折叠成后端认识的单个 platform。
+ * 把多选来源映射成后端的 platform 字段。
  *
- * 后端只接受一个 platform：选中恰好一个采集源时直接用它，选中多个时用
- * `auto`（聚合爬虫会并发跑所有源并做均衡采样）。这是现有 API 下最接近
- * “多选”语义的映射。
- *
- * TODO(backend): 若要精确控制“只跑这三个源”，需要 TaskRequest 支持
- * platforms: string[]，并让 AutoCrawler 按传入子集构造 _sources。
+ * 恰好选中一个采集源时直接用它——单源任务没必要绕一层聚合爬虫。选中多个
+ * 时用 `auto`，具体跑哪几个由随行的 `platforms[]` 决定。
  */
 export function resolvePlatform(sources: string[]): Platform {
   const picked = selectedCrawlerPlatforms(sources);
@@ -213,8 +223,12 @@ export function useAnalysisForm() {
     () => selectedCrawlerPlatforms(state.sources).length,
     [state.sources]
   );
+  const searchProviders = useMemo(
+    () => selectedSearchProviders(state.sources),
+    [state.sources]
+  );
 
-  /** 组装后端请求体。只使用现有字段，不改动 API 契约。 */
+  /** 组装后端请求体 */
   const buildTaskRequest = useCallback(
     (config: LLMConfig): TaskRequest => {
       const preset = LLM_ANALYSIS_TYPES.find((t) => t.value === state.llmAnalysis);
@@ -226,6 +240,10 @@ export function useAnalysisForm() {
         keyword: state.keyword.trim(),
         platform: resolvePlatform(state.sources),
         count: state.count,
+        platforms: selectedCrawlerPlatforms(state.sources),
+        // 一个检索源都没勾 = 关闭检索增强。这里必须传空数组而不是省略字段：
+        // 省略在后端表示"全部启用"，与用户的意思正好相反。
+        search_providers: selectedSearchProviders(state.sources),
         llm_base_url: config.llm_base_url,
         llm_api_key: config.llm_api_key,
         llm_model: config.llm_model,
@@ -243,6 +261,7 @@ export function useAnalysisForm() {
     toggleSource,
     platform,
     crawlerCount,
+    searchCount: searchProviders.length,
     buildTaskRequest,
     reset: () => setState({ ...DEFAULT_STATE, keyword: state.keyword }),
   };
