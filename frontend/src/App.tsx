@@ -4,40 +4,48 @@ import { ResultPage } from "./pages/ResultPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { RecentTasksMenu } from "./components/RecentTasksMenu";
 
-/** 顶部导航 + 页脚的全站壳。最近任务作为全局下拉菜单放在导航最上方。 */
+const REPO_URL = "https://github.com/onlynor/vibemeter";
+
+/**
+ * 全站外壳：毛玻璃顶栏 + 内容 + 页脚。
+ *
+ * 顶栏 sticky 且半透明，内容从下方滚过时保持层次感；高度写进
+ * `--header-h`，侧栏的 sticky 定位与 rail 位置都从这个变量算，
+ * 改导航高度不必再去追那些散落的魔法数字。
+ */
 export function App() {
   return (
     <div className="app-shell d-flex flex-column min-vh-100">
-      <nav className="navbar navbar-dark app-navbar shadow-sm">
-        <div className="container app-navbar-container">
-          <Link className="navbar-brand fw-bold d-flex align-items-center link-reset" to="/">
-            <span className="brand-dot" />
-            <span className="ms-2">舆情洞察员</span>
+      <header className="site-header">
+        <div className="site-header-inner">
+          <Link className="site-brand" to="/">
+            <span className="site-brand-mark" aria-hidden="true" />
+            <span>舆情洞察员</span>
           </Link>
-          <div className="d-flex align-items-center gap-3">
+          <nav className="site-nav">
             <RecentTasksMenu />
             <NavLink
               to="/"
               end
               className={({ isActive }) =>
-                "navbar-text small link-reset " + (isActive ? "text-white" : "text-light")
+                "site-nav-link" + (isActive ? " is-active" : "")
               }
             >
               首页
             </NavLink>
             <a
-              className="navbar-text text-light small d-inline-flex align-items-center link-reset"
-              href="https://github.com/onlynor/vibemeter"
+              className="site-nav-link"
+              href={REPO_URL}
               target="_blank"
               rel="noopener"
               title="GitHub 仓库 onlynor/vibemeter"
             >
-              <i className="bi bi-github me-1" />
-              <span>VibeMeter</span>
+              <i className="bi bi-github" aria-hidden="true" />
+              <span>GitHub</span>
             </a>
-          </div>
+          </nav>
         </div>
-      </nav>
+      </header>
 
       <main className="flex-grow-1">
         <div className="page-container">
@@ -49,17 +57,14 @@ export function App() {
         </div>
       </main>
 
-      <footer className="text-center app-footer small py-4">
-        <div>&copy; {new Date().getFullYear()} Sentiment Insight Platform</div>
-        <div className="mt-1">
-          <a
-            className="link-reset d-inline-flex align-items-center text-muted"
-            href="https://github.com/onlynor/vibemeter"
-            target="_blank"
-            rel="noopener"
-          >
-            <i className="bi bi-github me-1" />onlynor/vibemeter
+      <footer className="site-footer">
+        <div>&copy; {new Date().getFullYear()} VibeMeter · 舆情洞察员</div>
+        <div className="site-footer-links">
+          <a href={REPO_URL} target="_blank" rel="noopener">
+            onlynor/vibemeter
           </a>
+          <span className="site-footer-sep" aria-hidden="true">·</span>
+          <span>数据来自公开页面，仅供研究参考</span>
         </div>
       </footer>
     </div>

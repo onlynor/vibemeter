@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { echarts } from "./echarts";
+import { CHART_FONT, SENTIMENT_COLORS, echarts } from "./echarts";
 import type { PieSlice } from "../../api/types";
 
 interface Props {
@@ -27,15 +27,37 @@ export function SentimentPie({ data }: Props) {
     const chart = chartRef.current;
     if (!chart) return;
     chart.setOption({
-      tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
-      legend: { bottom: 0, icon: "circle" },
-      color: ["#2eb872", "#f0b400", "#e64545"],
+      textStyle: { fontFamily: CHART_FONT, color: "#6e6e73" },
+      tooltip: {
+        trigger: "item",
+        formatter: "{b}: {c} ({d}%)",
+        backgroundColor: "rgba(255,255,255,.92)",
+        borderWidth: 0,
+        extraCssText: "backdrop-filter:blur(20px);border-radius:12px;" +
+                      "box-shadow:0 8px 28px rgba(0,0,0,.12);",
+        textStyle: { color: "#1d1d1f", fontSize: 13 },
+      },
+      legend: {
+        bottom: 0,
+        icon: "circle",
+        itemGap: 20,
+        textStyle: { color: "#6e6e73", fontSize: 13 },
+      },
+      color: SENTIMENT_COLORS,
       series: [
         {
           type: "pie",
-          radius: ["45%", "70%"],
-          itemStyle: { borderRadius: 8, borderColor: "#fff", borderWidth: 2 },
-          label: { show: true, formatter: "{b}\n{d}%" },
+          radius: ["58%", "78%"],
+          center: ["50%", "46%"],
+          itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 3 },
+          label: {
+            show: true,
+            formatter: "{b}\n{d}%",
+            color: "#1d1d1f",
+            fontSize: 13,
+            lineHeight: 18,
+          },
+          labelLine: { lineStyle: { color: "#c7c7cc" } },
           data,
         },
       ],

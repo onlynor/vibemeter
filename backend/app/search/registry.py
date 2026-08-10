@@ -10,7 +10,9 @@ import asyncio
 import importlib
 import logging
 import pkgutil
+import re
 from typing import Iterable, Sequence
+from urllib.parse import urlsplit
 
 from app.search.base import PingResult, SearchProvider, SearchResult
 
@@ -19,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 # 单个 provider 的检索时限。超时只淘汰它自己，其余 provider 照常返回。
 PROVIDER_TIMEOUT: float = 12.0
+# 短于这个长度的归一化标题不参与去重，避免"官网""首页"之类误伤
+TITLE_DEDUP_MIN_LEN: int = 8
+
+_TITLE_NOISE_RE = re.compile(r"[\s\W_]+", re.UNICODE)
 
 _REGISTRY: dict[str, type[SearchProvider]] = {}
 _discovered = False
@@ -110,18 +116,54 @@ async def _run_one(
     return results, status
 
 
-def _interleave(groups: Iterable[list[SearchResult]]) -> list[SearchResult]:
-    """跨 provider 轮转合并
+def _url_key(url: str) -> str:
+    """跨引擎比对用的 URL 归一化：忽略协议、www 前缀与结尾斜杠
 
-    与聚合爬虫同样的理由：直接按 provider 顺序拼接的话，下游一截断就只剩
+    刻意保留 query：不少站点靠 ``?id=`` 区分文章，去掉就会把不同页面
+    误判成同一条。
+    """
+    parts = urlsplit(url.lower())
+    host = parts.netloc
+    if host.startswith("www."):
+        host = host[4:]
+    path = parts.path.rstrip("/")
+    return f"{host}{path}?{parts.query}"
+
+
+def _title_key(title: str) -> str:
+    """标题归一化，用于识别同一篇稿件的多站转载"""
+    return _TITLE_NOISE_RE.sub("", title).lower()
+
+
+def _interleave(groups: Iterable[list[SearchResult]]) -> list[SearchResult]:
+    """跨 provider 轮转合并并去重
+
+    轮转的理由与聚合爬虫相同：直接按 provider 顺序拼接的话，下游一截断就只剩
     排在最前面那个引擎的结果。轮转后每个引擎的高位结果都能留在前面。
+
+    去重是多引擎并联后才出现的问题：同一条新闻在百度和必应都排前列，不去重
+    的话检索结果的前几条会成对重复，等于把 LLM 的背景资料预算浪费掉一半。
+    URL 之外还比标题，因为同一篇稿件被多站转载时链接并不相同。
     """
     buckets = [list(g) for g in groups if g]
     merged: list[SearchResult] = []
+    seen_urls: set[str] = set()
+    seen_titles: set[str] = set()
     for depth in range(max((len(b) for b in buckets), default=0)):
         for bucket in buckets:
-            if depth < len(bucket):
-                merged.append(bucket[depth])
+            if depth >= len(bucket):
+                continue
+            item = bucket[depth]
+            url_key = _url_key(item.url)
+            if url_key in seen_urls:
+                continue
+            title_key = _title_key(item.title)
+            # 短标题太容易撞车（"首页"、"官网"），只对足够长的标题去重
+            if len(title_key) >= TITLE_DEDUP_MIN_LEN and title_key in seen_titles:
+                continue
+            seen_urls.add(url_key)
+            seen_titles.add(title_key)
+            merged.append(item)
     return merged
 
 
@@ -130,8 +172,16 @@ async def search_all(
     *,
     limit: int = 10,
     providers: Sequence[str] | None = None,
+    total_limit: int | None = None,
 ) -> tuple[list[SearchResult], list[dict]]:
     """并发跑全部（或指定的）provider，返回 (合并结果, 各源状态)
+
+    ``limit`` 是**单个引擎**的取数上限，``total_limit`` 才是合并去重后的总量
+    上限。两者分开是因为引擎越多、重复越多，若只按总量向每个引擎少要，
+    去重之后反而凑不满。
+
+    ``providers`` 为 None 表示跑全部；传空列表表示一个都不跑（用户关掉了
+    检索增强），两者语义不同，不要合并。
 
     单个 provider 超时或抛异常都只影响它自己：它的状态被标成不可用，
     其余 provider 的结果照常返回。
@@ -145,6 +195,8 @@ async def search_all(
         *(_run_one(p, query, limit) for p in instances)
     )
     merged = _interleave([results for results, _ in pairs])
+    if total_limit is not None and total_limit >= 0:
+        merged = merged[:total_limit]
     return merged, [status for _, status in pairs]
 
 

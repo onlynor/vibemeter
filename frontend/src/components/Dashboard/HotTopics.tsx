@@ -173,12 +173,12 @@ export function HotTopics({ onPick }: Props) {
                     {item.title}
                   </button>
                   {item.subtitle && (
-                    <div className="text-muted small mt-1 text-truncate-2">{item.subtitle}</div>
+                    <div className="section-caption mt-1 text-truncate-2">{item.subtitle}</div>
                   )}
-                  <div className="hotspot-tags mt-2">
+                  <div className="hotspot-tags">
                     {heat && (
                       <span className="hotspot-meta">
-                        <i className="bi bi-fire text-danger" /> {heat}
+                        <i className="bi bi-fire" /> {heat}
                       </span>
                     )}
                     <span className={"hotspot-trend " + trend.cls}>
@@ -206,14 +206,12 @@ export function HotTopics({ onPick }: Props) {
   }
 
   return (
-    <div className="hotspot-card card border-0 shadow-sm h-100">
-      <div className="card-body p-4">
-        <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-1">
+    <div className="hotspot-card card h-100">
+      <div className="card-body">
+        <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap">
           <div>
-            <h4 className="fw-bold mb-0">
-              <i className="bi bi-fire text-danger me-2" />实时热搜
-            </h4>
-            <div className="text-muted" style={{ fontSize: ".78rem" }}>
+            <h4 className="mb-0">实时热搜</h4>
+            <div className="section-caption mt-1">
               {updatedAt
                 ? `更新于 ${updatedAt.toLocaleTimeString("zh-CN", { hour12: false })}`
                 : "尚未更新"}
@@ -221,7 +219,7 @@ export function HotTopics({ onPick }: Props) {
             </div>
           </div>
           <button
-            className="btn btn-outline-secondary btn-sm"
+            className="icon-btn"
             type="button"
             title="立即刷新"
             aria-label="立即刷新"

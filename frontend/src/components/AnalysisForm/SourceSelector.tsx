@@ -5,9 +5,10 @@ import type { Platform } from "../../api/types";
 interface Props {
   selected: string[];
   onToggle: (id: string) => void;
-  /** 折叠后实际发给后端的 platform，用于向用户说明真实行为 */
+  /** 实际发给后端的 platform，用于向用户说明真实行为 */
   resolvedPlatform: Platform;
   crawlerCount: number;
+  searchCount: number;
 }
 
 function Group({
@@ -24,10 +25,10 @@ function Group({
   onToggle: (id: string) => void;
 }) {
   return (
-    <div className="mb-3">
-      <div className="d-flex align-items-baseline gap-2 mb-2">
-        <span className="fw-semibold small">{title}</span>
-        <span className="text-muted" style={{ fontSize: ".78rem" }}>{caption}</span>
+    <div className="source-group">
+      <div className="source-group-head">
+        <span className="source-group-title">{title}</span>
+        <span className="source-group-caption">{caption}</span>
       </div>
       <div className="source-grid">
         {items.map((item) => {
@@ -47,10 +48,13 @@ function Group({
                 checked={checked}
                 onChange={() => onToggle(item.id)}
               />
-              <i className={"bi " + item.icon} aria-hidden="true" />
+              <i className={"bi " + item.icon + " source-chip-icon"} aria-hidden="true" />
               <span className="source-chip-label">{item.label}</span>
               {!item.backed && <span className="badge-soft">待接入</span>}
               <span className="source-chip-hint">{item.hint}</span>
+              <span className="source-chip-check" aria-hidden="true">
+                <i className="bi bi-check" />
+              </span>
             </label>
           );
         })}
@@ -62,10 +66,16 @@ function Group({
 /**
  * 数据源多选。
  *
- * 后端 `TaskRequest.platform` 只接受单个值，所以这里明确告诉用户多选会被
- * 折叠成什么——不写清楚的话，用户会以为勾掉某个源就真的不会去抓它。
+ * 勾选是真生效的：采集平台随 `platforms[]` 发给后端，聚合爬虫只会启动被勾中
+ * 的源；检索源随 `search_providers[]` 发出，一个都不勾就是关掉检索增强。
  */
-export function SourceSelector({ selected, onToggle, resolvedPlatform, crawlerCount }: Props) {
+export function SourceSelector({
+  selected,
+  onToggle,
+  resolvedPlatform,
+  crawlerCount,
+  searchCount,
+}: Props) {
   const crawlers = SOURCES.filter((s) => s.kind === "crawler");
   const searches = SOURCES.filter((s) => s.kind === "search");
 
@@ -86,19 +96,22 @@ export function SourceSelector({ selected, onToggle, resolvedPlatform, crawlerCo
         onToggle={onToggle}
       />
 
-      <div className="notice-inline">
-        <i className="bi bi-info-circle" aria-hidden="true" />
+      <div className={"notice-inline" + (crawlerCount === 0 ? " is-warning" : "")}>
+        <i
+          className={"bi " + (crawlerCount === 0 ? "bi-exclamation-triangle" : "bi-info-circle")}
+          aria-hidden="true"
+        />
         {crawlerCount === 0 ? (
-          <span>未选择任何采集平台，将回退为聚合搜索。</span>
+          <span>请至少选择一个采集平台，否则没有评论可供分析。</span>
         ) : crawlerCount === 1 ? (
           <span>
-            将以 <strong>{platformLabel(resolvedPlatform)}</strong> 单源采集。
+            将以 <strong>{platformLabel(resolvedPlatform)}</strong> 单源采集
+            {searchCount > 0 ? `，并用 ${searchCount} 个搜索引擎补充背景。` : "，不使用检索增强。"}
           </span>
         ) : (
           <span>
-            已选 {crawlerCount} 个平台，后端按 <strong>聚合搜索</strong> 并发抓取并均衡采样。
-            {/* TODO(backend): 支持 platforms[] 才能精确只跑所选子集 */}
-            精确限定子集需后端支持 <code>platforms[]</code>。
+            将并发抓取 <strong>{crawlerCount} 个平台</strong>并按来源轮转均衡采样
+            {searchCount > 0 ? `，另有 ${searchCount} 个搜索引擎补充背景。` : "，不使用检索增强。"}
           </span>
         )}
       </div>

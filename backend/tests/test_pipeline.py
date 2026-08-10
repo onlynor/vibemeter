@@ -36,7 +36,7 @@ class Stub(BaseCrawler):
 
 async def main():
     await database.init_db()
-    mgr.get_crawler = lambda platform: Stub()
+    mgr.get_crawler = lambda platform, platforms=None: Stub()
 
     m = mgr.TaskManager()
     task_id = await m.create_task("测试", "auto", 60)

@@ -42,11 +42,16 @@ def install_provider(name, *, count=0, boom=None):
 
 
 async def run_task(providers):
-    # restrict search_all to just our stubs
+    # restrict search_all to just our stubs, but keep the rest of the real
+    # signature so the manager's call site is genuinely exercised
     orig = registry.search_all
-    async def patched(query, *, limit=10, providers_=None):
-        return await orig(query, limit=limit, providers=providers)
-    mgr.search_all = lambda q, limit=10: orig(q, limit=limit, providers=providers)
+
+    async def patched(query, *, limit=10, providers=None, total_limit=None):
+        return await orig(query, limit=limit, providers=stub_providers,
+                          total_limit=total_limit)
+
+    stub_providers = providers
+    mgr.search_all = patched
 
     m = mgr.TaskManager()
     tid = await m.create_task("测试", "auto", 40)
@@ -63,7 +68,7 @@ async def run_task(providers):
 
 async def main():
     await database.init_db()
-    mgr.get_crawler = lambda platform: Stub()
+    mgr.get_crawler = lambda platform, platforms=None: Stub()
 
     print("case 1: healthy provider")
     names = [install_provider("sp_ok", count=3)]

@@ -33,15 +33,27 @@ frontend/
 └── tsconfig.json
 ```
 
+## 视觉体系
+
+`src/styles.css` 是一套 token 驱动的设计系统，取向参考 apple.com：`#fbfbfd` 页面底色、
+纯白卡片、`rgba(0,0,0,.09)` 发丝分隔线、胶囊按钮、`#0071e3` 强调色、标题收紧字距、
+毛玻璃顶栏。Bootstrap 5.3 仍从 CDN 引入，**只覆盖观感、不改组件类名与结构**，
+因此改动标记结构是安全的。新 UI 请引用 `--*` 变量而不是写死颜色。
+
+ECharts 在 canvas 里绘制，读不到 CSS 变量，配色在 `components/Charts/echarts.ts`
+里镜像了一份常量——改调色板时两边都要动。
+
 ## 功能要点
 
 - 首页监测台：关键词 + 检索模式卡片、数据源多选（采集平台 / 检索增强分组）、可折叠的高级检索与分析选项、数据源可用性检测；实时热搜支持来源筛选、定时刷新与趋势标记；最近任务卡片可回看或本地隐藏
 - 结果页：进度条 + WebSocket 推送、统计卡片、样本构成、搜索引擎结果、ECharts 饼图/柱状图、词云、最正/最负评论、原帖列表（含 B 站视频内嵌）、导出归档、XML 上下文复制
 
-> **表单选项与后端契约**：`POST /api/task` 只接受 `keyword / platform / count / llm_*`。
+> **表单选项与后端契约**：`POST /api/task` 接受
+> `keyword / platform / count / platforms[] / search_providers[] / llm_*`。
 > `state/analysisForm.ts` 为每个选项标注 `backed`：`true` 表示真实映射到请求字段
-> （检索模式→采集量、数据源→platform、LLM 分析类型→提问模板），`false` 表示仅保存前端偏好，
-> 界面上显示「前端预设」徽标，代码里带 `TODO(backend)` 注明后端需要补什么。
+> （检索模式→采集量、采集平台→`platform` + `platforms[]`、检索源→`search_providers[]`、
+> LLM 分析类型→提问模板），`false` 表示仅保存前端偏好，界面上显示「前端预设」徽标，
+> 代码里带 `TODO(backend)` 注明后端需要补什么。
 > 热搜趋势由前端跨刷新对比排名得出，任务「删除」只在本机隐藏（后端无删除接口）。
 - LLM 侧栏：拖拽调宽 + 双击重置 + 折叠态 + 宽度持久化（首页/结果页共享 `LlmSidebar` 外壳）
 - LLM 配置：服务端进程内存持久化、测试连接（首页/结果页共享 `LlmConfigForm`）

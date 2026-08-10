@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
-import { echarts } from "./echarts";
+import {
+  CHART_ACCENT,
+  CHART_FONT,
+  CHART_GRID,
+  CHART_TEXT,
+  CHART_TEXT_SECONDARY,
+  echarts,
+} from "./echarts";
 import type { WordItem } from "../../api/types";
 
 interface Props {
@@ -28,25 +35,39 @@ export function TopWordsBar({ data }: Props) {
     if (!chart) return;
     const reversed = data.slice().reverse();
     chart.setOption({
-      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-      grid: { left: "18%", right: "8%", bottom: "5%", top: "5%" },
-      xAxis: { type: "value", splitLine: { lineStyle: { color: "#eef0f5" } } },
+      textStyle: { fontFamily: CHART_FONT, color: CHART_TEXT_SECONDARY },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow", shadowStyle: { color: "rgba(0,0,0,.03)" } },
+        backgroundColor: "rgba(255,255,255,.92)",
+        borderWidth: 0,
+        extraCssText: "backdrop-filter:blur(20px);border-radius:12px;" +
+                      "box-shadow:0 8px 28px rgba(0,0,0,.12);",
+        textStyle: { color: CHART_TEXT, fontSize: 13 },
+      },
+      grid: { left: 4, right: 24, bottom: 4, top: 8, containLabel: true },
+      xAxis: {
+        type: "value",
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { color: CHART_TEXT_SECONDARY, fontSize: 12 },
+        splitLine: { lineStyle: { color: CHART_GRID } },
+      },
       yAxis: {
         type: "category",
         data: reversed.map((item) => item.name),
         axisLine: { show: false },
         axisTick: { show: false },
+        axisLabel: { color: CHART_TEXT, fontSize: 13 },
       },
       series: [
         {
           type: "bar",
+          barMaxWidth: 18,
           data: reversed.map((item) => item.value),
           itemStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: "#4f7ec7" },
-              { offset: 1, color: "#1a3d8f" },
-            ]),
-            borderRadius: [0, 6, 6, 0],
+            color: CHART_ACCENT,
+            borderRadius: [0, 5, 5, 0],
           },
         },
       ],

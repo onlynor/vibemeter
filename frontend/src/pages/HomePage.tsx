@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import { useLlmConfig } from "../state/llmConfig";
-import { useAnalysisForm } from "../state/analysisForm";
+import { SEARCH_MODES, useAnalysisForm } from "../state/analysisForm";
 import { LlmSidebar } from "../components/LlmSidebar";
 import { LlmConfigForm } from "../components/LlmConfigForm";
 import { SourceHealthCheck } from "../components/SourceHealthCheck";
@@ -44,7 +44,7 @@ function Section({
           <span className="settings-section-title">{title}</span>
           <span className="settings-section-caption">{caption}</span>
         </span>
-        <i className={"bi bi-chevron-down settings-chevron"} aria-hidden="true" />
+        <i className="bi bi-chevron-down settings-chevron" aria-hidden="true" />
       </button>
       {open && (
         <div className="settings-section-body" id={id}>
@@ -67,6 +67,8 @@ export function HomePage() {
   const llmConfigured = Boolean(
     config.llm_base_url?.trim() && config.llm_model?.trim()
   );
+  const modeLabel =
+    SEARCH_MODES.find((m) => m.value === form.state.mode)?.label || "";
 
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -74,6 +76,12 @@ export function HomePage() {
     if (!trimmed) {
       setError("请输入关键词");
       keywordRef.current?.focus();
+      return;
+    }
+    // 采集平台是评论的唯一来源，一个都不选后端只会拿到空样本。
+    // 与其让任务跑到清洗阶段才失败，不如在这里说清楚。
+    if (form.crawlerCount === 0) {
+      setError("请至少选择一个采集平台");
       return;
     }
     setError(null);
@@ -103,20 +111,22 @@ export function HomePage() {
       sidebar={<LlmConfigForm config={config} updateField={updateField} />}
       main={
         <div className="home-dashboard">
-          {/* 主分析面板 */}
-          <div className="hero-card card border-0 shadow-lg mb-4">
-            <div className="card-body p-4 p-md-5">
-              <div className="d-flex align-items-center mb-2">
-                <i className="bi bi-broadcast-pin hero-icon" />
-                <div className="ms-3">
-                  <h2 className="card-title fw-bold mb-0">舆情监测台</h2>
-                  <p className="text-muted mb-0 small">
-                    输入关键词，跨平台采集评论并完成情感与 LLM 解读
-                  </p>
-                </div>
-              </div>
+          <section className="hero">
+            <span className="hero-eyebrow">
+              <i className="bi bi-broadcast" aria-hidden="true" />
+              全网舆情监测
+            </span>
+            <h1 className="hero-title">看清一个话题下，大家究竟在说什么。</h1>
+            <p className="hero-subtitle">
+              输入关键词，跨五个平台采集真实评论，自动完成清洗、情感打分与观点提炼，
+              并由搜索引擎补齐事件背景。
+            </p>
+          </section>
 
-              <form noValidate onSubmit={onSubmit} className="mt-4">
+          {/* 主分析面板 */}
+          <div className="hero-card card mb-5">
+            <div className="card-body">
+              <form noValidate onSubmit={onSubmit}>
                 <KeywordInput
                   ref={keywordRef}
                   value={form.state.keyword}
@@ -130,7 +140,10 @@ export function HomePage() {
                     id="sec-sources"
                     icon="bi-diagram-3"
                     title="数据源"
-                    caption={`已启用 ${form.state.sources.length} 个来源`}
+                    caption={
+                      `采集 ${form.crawlerCount} 个平台` +
+                      (form.searchCount ? ` · 检索 ${form.searchCount} 个引擎` : " · 未启用检索增强")
+                    }
                     defaultOpen
                   >
                     <SourceSelector
@@ -138,6 +151,7 @@ export function HomePage() {
                       onToggle={form.toggleSource}
                       resolvedPlatform={form.platform}
                       crawlerCount={form.crawlerCount}
+                      searchCount={form.searchCount}
                     />
                   </Section>
 
@@ -183,7 +197,7 @@ export function HomePage() {
                 </div>
 
                 {error && (
-                  <div className="alert alert-danger py-2 px-3 small mt-3 mb-0" role="alert">
+                  <div className="alert alert-danger mt-4 mb-0" role="alert">
                     <i className="bi bi-exclamation-triangle me-2" />
                     {error}
                   </div>
@@ -200,12 +214,29 @@ export function HomePage() {
                       正在创建任务...
                     </>
                   ) : (
-                    <>
-                      <i className="bi bi-graph-up-arrow me-2" />
-                      开始分析
-                    </>
+                    "开始分析"
                   )}
                 </button>
+
+                {/* 点下去到底会发生什么，在按钮下面先讲清楚 */}
+                <div className="submit-summary">
+                  <span className="submit-summary-item">
+                    <i className="bi bi-lightning-charge" aria-hidden="true" />
+                    {modeLabel}
+                  </span>
+                  <span className="submit-summary-item">
+                    <i className="bi bi-list-ul" aria-hidden="true" />
+                    目标 {form.state.count} 条
+                  </span>
+                  <span className="submit-summary-item">
+                    <i className="bi bi-diagram-3" aria-hidden="true" />
+                    {form.crawlerCount} 个采集平台
+                  </span>
+                  <span className="submit-summary-item">
+                    <i className="bi bi-stars" aria-hidden="true" />
+                    {llmConfigured ? "LLM 解读已就绪" : "未配置 LLM"}
+                  </span>
+                </div>
               </form>
             </div>
           </div>

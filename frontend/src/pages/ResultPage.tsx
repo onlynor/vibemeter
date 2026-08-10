@@ -230,29 +230,25 @@ export function ResultPage() {
       main={
         <div id="dashboard-root" data-task-id={taskId}>
           {/* 顶部任务标题 */}
-          <div className="d-flex flex-wrap justify-content-between align-items-center mb-3">
+          <div className="page-heading">
             <div>
-              <h3 className="fw-bold mb-0">分析仪表板</h3>
-              <small className="text-muted">
-                <span>任务编号 {formatTaskNo(taskNo)}</span>
-                {startTime && (
-                  <span className="ms-2">创建于 {formatDateTime(startTime)}</span>
-                )}
-              </small>
+              <h1>{summary?.keyword || "分析仪表板"}</h1>
+              <div className="page-heading-meta">
+                <span>任务 {formatTaskNo(taskNo)}</span>
+                {startTime && <span className="ms-3">创建于 {formatDateTime(startTime)}</span>}
+              </div>
             </div>
-            <div className="mt-2 mt-md-0">
-              <Link className="btn btn-outline-secondary btn-sm" to="/">
-                <i className="bi bi-plus-circle" /> 新建任务
-              </Link>
-            </div>
+            <Link className="btn btn-outline-primary btn-sm" to="/">
+              <i className="bi bi-plus-lg me-1" /> 新建任务
+            </Link>
           </div>
 
           {/* 进度条 */}
-          <div className="card border-0 shadow-sm mb-4">
+          <div className="card mb-4">
             <div className="card-body">
-              <div className="d-flex justify-content-between align-items-center mb-2">
-                <strong>
-                  {!isFinished && <span className="dot-pulse" />} {label}
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <strong className="fw-semibold">
+                  {!isFinished && <span className="dot-pulse" />}{label}
                 </strong>
                 <span className="text-muted small">
                   {progress.status === "failed"
@@ -284,10 +280,10 @@ export function ResultPage() {
           {ready && summary && (
             <div id="dashboard-ready">
               {/* 模型上下文 XML */}
-              <div className="card border-0 shadow-sm mb-3">
-                <div className="card-body p-4">
-                  <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                    <h5 className="card-title fw-bold mb-0">模型上下文（XML）</h5>
+              <div className="card mb-3">
+                <div className="card-body">
+                  <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h5 className="card-title mb-0">模型上下文（XML）</h5>
                     <button className="btn btn-outline-secondary btn-sm" type="button" onClick={copyXml}>
                       {copied ? (
                         <><i className="bi bi-check2 me-1" />已复制</>
@@ -296,8 +292,8 @@ export function ResultPage() {
                       )}
                     </button>
                   </div>
-                  <details className="mt-2 llm-context-box">
-                    <summary className="text-muted small">展开 / 收起</summary>
+                  <details className="llm-context-box">
+                    <summary>展开 / 收起</summary>
                     <pre className="mb-0">{xmlContext || "加载中..."}</pre>
                   </details>
                 </div>
@@ -335,17 +331,17 @@ export function ResultPage() {
               {/* 图表 */}
               <div className="row g-3">
                 <div className="col-lg-5">
-                  <div className="card border-0 shadow-sm h-100">
+                  <div className="card h-100">
                     <div className="card-body">
-                      <h5 className="card-title fw-bold">情感分布</h5>
+                      <h5 className="card-title">情感分布</h5>
                       {pie && <SentimentPie data={pie} />}
                     </div>
                   </div>
                 </div>
                 <div className="col-lg-7">
-                  <div className="card border-0 shadow-sm h-100">
+                  <div className="card h-100">
                     <div className="card-body">
-                      <h5 className="card-title fw-bold">全量高频词 Top 15</h5>
+                      <h5 className="card-title">全量高频词 Top 15</h5>
                       {topWords && <TopWordsBar data={topWords} />}
                     </div>
                   </div>
@@ -355,10 +351,10 @@ export function ResultPage() {
               {/* 词云 */}
               <div className="row g-3 mt-1">
                 <div className="col-12">
-                  <div className="card border-0 shadow-sm">
+                  <div className="card">
                     <div className="card-body">
-                      <h5 className="card-title fw-bold mb-1">观点词云（仅作参考）</h5>
-                      <div className="text-muted small mb-3">
+                      <h5 className="card-title">观点词云（仅作参考）</h5>
+                      <div className="section-caption mb-3">
                         短语抽取与情感权重属于启发式结果，适合快速浏览，不代表严格人工标注结论。
                       </div>
                       <div className="row g-3">
@@ -386,9 +382,9 @@ export function ResultPage() {
 
               {/* 下载归档 */}
               {exports.length > 0 && (
-                <div className="card border-0 shadow-sm mt-3">
+                <div className="card mt-3">
                   <div className="card-body">
-                    <h5 className="card-title fw-bold"><i className="bi bi-download" /> 下载数据归档</h5>
+                    <h5 className="card-title mb-3">下载数据归档</h5>
                     <div className="d-flex flex-wrap gap-2">
                       {exports.map((item) => (
                         <a
@@ -418,10 +414,10 @@ export function ResultPage() {
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="col-md-3 col-6">
-      <div className="card stat-card border-0 shadow-sm h-100">
+      <div className="card stat-card h-100">
         <div className="card-body">
-          <div className="text-muted small">{label}</div>
-          <div className="display-6 fw-bold">{value}</div>
+          <div className="stat-card-label">{label}</div>
+          <div className="stat-card-value">{value}</div>
         </div>
       </div>
     </div>
@@ -445,17 +441,15 @@ function SearchResultsCard({
   if (items.length === 0 && failed.length === 0) return null;
 
   return (
-    <div className="card border-0 shadow-sm mb-3">
-      <div className="card-body p-4">
-        <h5 className="card-title fw-bold mb-1">
-          <i className="bi bi-search me-2" />搜索引擎结果
-        </h5>
-        <div className="text-muted small mb-3">
+    <div className="card mb-3">
+      <div className="card-body">
+        <h5 className="card-title">搜索引擎结果</h5>
+        <div className="section-caption mb-3">
           作为事件背景提供给模型，不计入情感分析
         </div>
 
         {failed.length > 0 && (
-          <div className="alert alert-warning py-2 px-3 small mb-3">
+          <div className="alert alert-warning mb-3">
             {failed.map((s) => (
               <div key={s.provider}>
                 {s.label}：{s.message}
@@ -464,26 +458,25 @@ function SearchResultsCard({
           </div>
         )}
 
-        <ol className="list-unstyled mb-0">
+        <ol className="search-result-list">
           {items.map((item) => (
-            <li key={`${item.source}-${item.rank}-${item.url}`} className="mb-3">
-              <div className="d-flex align-items-start gap-2">
-                <span className="badge bg-secondary flex-shrink-0">
-                  {platformLabel(item.source)} #{item.rank}
-                </span>
-                <div className="min-w-0">
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="fw-semibold d-block text-break"
-                  >
-                    {item.title}
-                  </a>
-                  {item.snippet && (
-                    <div className="text-muted small mt-1 text-break">{item.snippet}</div>
-                  )}
-                </div>
+            <li key={`${item.source}-${item.rank}-${item.url}`} className="search-result-item">
+              <span className="search-result-rank">
+                {platformLabel(item.source)} {item.rank}
+              </span>
+              <div className="min-w-0">
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="search-result-title text-break"
+                >
+                  {item.title}
+                </a>
+                {item.snippet && (
+                  <div className="search-result-snippet text-break">{item.snippet}</div>
+                )}
+                <div className="search-result-host">{hostOf(item.url)}</div>
               </div>
             </li>
           ))}
@@ -491,6 +484,15 @@ function SearchResultsCard({
       </div>
     </div>
   );
+}
+
+/** 只显示域名：完整 URL 又长又没信息量，域名才是"这条结果可不可信"的线索 */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 /** 各来源在本次样本里的占比。
@@ -507,34 +509,33 @@ function SourceMix({ stats }: { stats?: Record<string, number> }) {
   const total = entries.reduce((sum, [, n]) => sum + n, 0);
 
   return (
-    <div className="card border-0 shadow-sm mb-3">
-      <div className="card-body p-4">
-        <h5 className="card-title fw-bold mb-1">样本构成</h5>
-        <div className="text-muted small mb-3">
+    <div className="card mb-3">
+      <div className="card-body">
+        <h5 className="card-title">样本构成</h5>
+        <div className="section-caption mb-3">
           采集阶段各来源贡献的原始条数（去重、清洗前），共 {total} 条
         </div>
-        <div className="progress mb-3" style={{ height: 10 }} role="img"
+        <div className="source-mix-bar" role="img"
              aria-label={entries.map(([p, n]) => `${platformLabel(p)} ${n} 条`).join("，")}>
           {entries.map(([platform, n], i) => (
             <div
               key={platform}
-              className={"progress-bar " + SOURCE_MIX_CLASSES[i % SOURCE_MIX_CLASSES.length]}
-              style={{ width: (n / total) * 100 + "%" }}
+              style={{
+                width: (n / total) * 100 + "%",
+                background: SOURCE_MIX_COLORS[i % SOURCE_MIX_COLORS.length],
+              }}
               title={`${platformLabel(platform)} ${n} 条`}
             />
           ))}
         </div>
-        <div className="d-flex flex-wrap gap-3">
+        <div className="source-mix-legend">
           {entries.map(([platform, n], i) => (
-            <div key={platform} className="d-flex align-items-center small">
+            <div key={platform} className="d-flex align-items-center">
               <span
-                className={
-                  "d-inline-block rounded me-2 " +
-                  SOURCE_MIX_CLASSES[i % SOURCE_MIX_CLASSES.length]
-                }
-                style={{ width: 10, height: 10 }}
+                className="source-mix-swatch"
+                style={{ background: SOURCE_MIX_COLORS[i % SOURCE_MIX_COLORS.length] }}
               />
-              <span className="fw-semibold me-1">{platformLabel(platform)}</span>
+              <span className="fw-semibold me-2">{platformLabel(platform)}</span>
               <span className="text-muted">
                 {n} 条 · {((n / total) * 100).toFixed(0)}%
               </span>
@@ -546,13 +547,8 @@ function SourceMix({ stats }: { stats?: Record<string, number> }) {
   );
 }
 
-const SOURCE_MIX_CLASSES = [
-  "bg-primary",
-  "bg-success",
-  "bg-warning",
-  "bg-info",
-  "bg-secondary",
-];
+/** 定性区分用的中性色板，刻意避开情感三色，免得被误读成"这个源偏正面" */
+const SOURCE_MIX_COLORS = ["#0071e3", "#5e5ce6", "#64d2ff", "#8e8e93", "#c7c7cc"];
 
 function SourceCard({ items }: { items: SourceItem[] }) {
   const [embedUrl, setEmbedUrl] = useState<string | null>(null);
@@ -562,9 +558,9 @@ function SourceCard({ items }: { items: SourceItem[] }) {
   }, [items]);
 
   return (
-    <div className="card border-0 shadow-sm mb-3">
-      <div className="card-body p-4">
-        <h5 className="card-title fw-bold mb-0">原帖 / 原视频</h5>
+    <div className="card mb-3">
+      <div className="card-body">
+        <h5 className="card-title mb-3">原帖 / 原视频</h5>
         <div className="row g-3 mt-1">
           <div className="col-lg-7">
             {items.map((item, idx) => (
@@ -631,15 +627,15 @@ function SourceCard({ items }: { items: SourceItem[] }) {
 
 function InsightCard({ insight }: { insight: NonNullable<Summary["llm_insight"]> }) {
   return (
-    <div className="card border-0 shadow-sm mb-3">
-      <div className="card-body p-4">
+    <div className="card mb-3">
+      <div className="card-body">
         <div className="d-flex align-items-center gap-2 mb-2">
           <span className="insight-kicker">LLM</span>
         </div>
         {insight.question && (
           <div className="question-chip mb-3" dangerouslySetInnerHTML={{ __html: escapeHtml(insight.question) }} />
         )}
-        <h4 className="fw-bold mb-2">{insight.title || ""}</h4>
+        <h4 className="mb-3">{insight.title || ""}</h4>
         {insight.answer && (
           <div
             className="insight-body"
@@ -700,10 +696,10 @@ function CommentList({
 }) {
   return (
     <div className="col-md-6">
-      <div className="card border-0 shadow-sm h-100">
+      <div className="card h-100">
         <div className="card-body">
-          <h5 className={"card-title fw-bold " + textClass}>
-            <i className={"bi " + icon} /> {title}
+          <h5 className={"card-title mb-3 " + textClass}>
+            <i className={"bi " + icon + " me-2"} />{title}
           </h5>
           {items.map((item, idx) => (
             <div key={idx} className={"comment-item " + flavor}>

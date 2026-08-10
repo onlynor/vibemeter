@@ -23,7 +23,7 @@ export function SourceHealthCheck() {
   return (
     <>
       <button
-        className="btn btn-outline-secondary btn-sm"
+        className="btn btn-outline-primary btn-sm"
         type="button"
         onClick={check}
         disabled={state.kind === "loading"}
@@ -34,7 +34,7 @@ export function SourceHealthCheck() {
       </button>
 
       {state.kind === "error" && (
-        <div className="text-danger small mt-2">检测失败：{state.message}</div>
+        <div className="alert alert-danger mt-3 mb-0">检测失败：{state.message}</div>
       )}
 
       {state.kind === "ready" && state.items.length > 0 && (
@@ -43,7 +43,7 @@ export function SourceHealthCheck() {
           {/* 搜索引擎不是可选的采集平台，单独分组，避免被误认为能在下拉框里选 */}
           {state.items.some((i) => i.kind === "search") && (
             <>
-              <div className="text-muted small mt-2 fw-semibold">检索增强（背景资料）</div>
+              <div className="source-health-group-title">检索增强（背景资料）</div>
               <HealthList items={state.items.filter((i) => i.kind === "search")} />
             </>
           )}
@@ -56,9 +56,9 @@ export function SourceHealthCheck() {
 function HealthList({ items }: { items: SourceHealth[] }) {
   if (items.length === 0) return null;
   return (
-    <ul className="source-health-list list-unstyled small mt-2 mb-0">
+    <ul className="source-health-list list-unstyled mb-0">
       {items.map((item) => (
-        <li key={item.platform} className="d-flex gap-2 align-items-start py-1">
+        <li key={item.platform} className="d-flex gap-2 align-items-start">
           <i
             className={
               "bi mt-1 " +
@@ -69,9 +69,9 @@ function HealthList({ items }: { items: SourceHealth[] }) {
           />
           <div>
             <span className="fw-semibold">{item.label}</span>
-            <span className="text-muted ms-2">{item.message}</span>
+            <span className="ms-2">{item.message}</span>
             {item.cookie_env && !item.cookie_configured && (
-              <div className="text-muted">
+              <div className="text-muted mt-1">
                 可在 .env 配置 <code>{item.cookie_env}</code>
                 {item.cookie_required ? "（该平台必需）" : "（可选，提升稳定性）"}
               </div>

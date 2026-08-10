@@ -18,37 +18,39 @@
 只需在本目录下新建一个文件，**不需要修改任何既有代码**（注册表会自动发现）。
 
 ```python
-# app/search/bing.py
+# app/search/sogou.py
 from app.crawlers.http_utils import fetch_text, make_client
 from app.search.base import ResultSpec, SearchProvider, parse_results
 from app.search.registry import register_provider
 
-BING_SPEC = ResultSpec(
-    container="li.b_algo",       # 每条结果的容器
-    title="h2",
-    link="h2 a",
-    snippet=(".b_caption p", ".b_snippet"),   # 按顺序取第一个非空
-    ad_href_markers=("bing.com/aclick",),     # 命中即判为广告并跳过
+SOGOU_SPEC = ResultSpec(
+    container=".vrwrap",         # 每条结果的容器
+    title="h3",
+    link="h3 a",
+    snippet=(".text-layout", ".fz-mid"),   # 按顺序取第一个非空
+    ad_href_markers=("/gg/",),             # 命中即判为广告并跳过
 )
 
 
 @register_provider
-class BingSearchProvider(SearchProvider):
-    name = "bing"          # 必须唯一，重名会在注册时报错
-    label = "必应搜索"
+class SogouSearchProvider(SearchProvider):
+    name = "sogou"          # 必须唯一，重名会在注册时报错
+    label = "搜狗搜索"
 
     async def search(self, query: str, *, limit: int):
-        async with make_client(referer="https://www.bing.com/") as client:
+        async with make_client(referer="https://www.sogou.com/") as client:
             html = await fetch_text(
-                client, "https://www.bing.com/search", params={"q": query},
+                client, "https://www.sogou.com/web", params={"query": query},
             )
         if not html:
-            raise RuntimeError("必应检索无响应")
-        return parse_results(html, BING_SPEC, self.name, limit)
+            raise RuntimeError("搜狗检索无响应")
+        return parse_results(html, SOGOU_SPEC, self.name, limit)
 ```
 
 就这样。`search_all()` 下次调用时会自动带上它，前端的可用性检测、结果卡片、
-LLM 上下文也都会自动包含，无需改动。
+LLM 上下文也都会自动包含，无需改动。前端若要让用户单独勾选它，只需在
+`frontend/src/state/analysisForm.ts` 的 `SOURCES` 里加一行，把 `provider`
+填成这里的 `name`。
 
 ### 约定
 
@@ -62,6 +64,10 @@ LLM 上下文也都会自动包含，无需改动。
   只有结构特殊到 spec 表达不了时才自己解析，且仍要返回 `SearchResult`。
 - **rank 从 1 起**，表示在**该 provider 自身**结果里的名次；广告被跳过时
   不占名次。跨 provider 的 rank 没有可比性，聚合层是轮转合并而不是按 rank 排序。
+- **不必自己去重**。`search_all` 合并时会按归一化 URL（忽略协议 / `www.` /
+  结尾斜杠）与归一化标题跨引擎去重——多引擎并联后前几条成对重复是常态，
+  不去重等于把 LLM 的背景资料预算浪费一半。`limit` 是单引擎上限，
+  `total_limit` 才是合并去重后的总量上限。
 
 ### ResultSpec 字段
 
@@ -82,6 +88,28 @@ LLM 上下文也都会自动包含，无需改动。
 - 广告与自然结果的区别在跳转域名：广告 `baidu.php?url=`，自然结果 `link?url=`。
 - 真实地址在容器的 `mu` 属性上；百度自家卡片会写成 `nourl.ubs.baidu.com`
   这种占位值，已在 spec 里标为 placeholder 并退回 `href`。
+
+## 必应实现要点
+
+- 结果容器 `li.b_algo`，广告在 `li.b_ad` 里，选择器本身就排除了广告；
+  `ad_href_markers` 只是对漏进来的 `/aclick?` 兜底。
+- 多数结果 `h2 a[href]` 就是真实地址；少数包成
+  `bing.com/ck/a?...&u=a1<base64url>`，`_resolve_redirect` 就地解开，解不开
+  则退回原链接而不是丢掉这条结果。
+- `ensearch=0` 保证走中文界面。不带这个参数在部分出口 IP 上会返回英文页，
+  摘要语言与评论语料对不上，LLM 读起来是割裂的。
+- 存在的意义不只是"多一个源"：百度高频检索会弹安全验证，一旦触发检索增强
+  整段消失；必应风控宽松得多，两者并联后单边被限流时仍有背景资料可用。
+
+## 文本归一化
+
+`clean_text` 会删掉**夹在两个汉字之间**的空格。引擎把查询词包成
+`<strong>`，节点文本一旦带分隔符取出就会变成「小米汽车 （ 小米汽车 科技
+有限公司）」。中文本来不用空格分词，这类空格一律是标签边界的产物。
+字母之间的空格保留（`AI 技术`、`Xiaomi SU7` 不受影响）。
+
+摘要还会剥掉开头的时间前缀（`2026年1月2日 ·`、`15 小时之前 ·`）与结尾的
+`百度快照`：对"这条结果讲了什么"没有信息量，却会占掉 LLM 的上下文预算。
 
 ## 测试
 

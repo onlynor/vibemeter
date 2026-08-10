@@ -159,6 +159,8 @@ async def create_task(payload: TaskRequest):
         payload.keyword,
         payload.platform,
         payload.count,
+        platforms=payload.platforms,
+        search_providers=payload.search_providers,
         llm_base_url=payload.llm_base_url,
         llm_api_key=payload.llm_api_key,
         llm_model=payload.llm_model,

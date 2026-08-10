@@ -12,7 +12,7 @@ import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Sequence
 
 import aiosqlite
 
@@ -36,8 +36,11 @@ logger = logging.getLogger(__name__)
 
 MIN_REQUIRED_COMMENTS = 300
 MAX_HISTORY_TASKS = 10
-# 每个搜索引擎取多少条作为 LLM 背景资料
+# 每个搜索引擎单独取多少条
 SEARCH_RESULT_LIMIT = 8
+# 跨引擎合并去重后保留多少条作为 LLM 背景资料。比 8×引擎数 小得多是有意的：
+# 背景资料只用来交代"这件事是什么"，条数再多也只是挤占上下文预算。
+SEARCH_TOTAL_LIMIT = 12
 
 
 class TaskManager:
@@ -61,6 +64,8 @@ class TaskManager:
         platform: str,
         count: int,
         *,
+        platforms: Optional[Sequence[str]] = None,
+        search_providers: Optional[Sequence[str]] = None,
         llm_base_url: str = "",
         llm_api_key: str = "",
         llm_model: str = "",
@@ -103,6 +108,10 @@ class TaskManager:
                     question=llm_question,
                     context_format=llm_context_format,
                 ),
+                platforms=list(platforms) if platforms is not None else None,
+                search_providers=(
+                    list(search_providers) if search_providers is not None else None
+                ),
             )
         )
         return task_id
@@ -116,10 +125,13 @@ class TaskManager:
         platform: str,
         count: int,
         llm_config: LLMConfig,
+        *,
+        platforms: Optional[list[str]] = None,
+        search_providers: Optional[list[str]] = None,
     ) -> None:
         """单个任务的后台主流水线"""
         started = time.time()
-        platform_label = self._platform_label(platform)
+        platform_label = self._platform_label(platform, platforms)
         try:
             await self._set_status(task_id, "crawling")
             await self._push(
@@ -133,11 +145,16 @@ class TaskManager:
             # 搜索引擎检索与评论采集并发跑：它只喂 LLM 上下文与前端展示，
             # 不参与情感分析，所以不必阻塞采集，失败也不该影响整个任务。
             search_task = asyncio.create_task(
-                search_all(keyword, limit=SEARCH_RESULT_LIMIT)
+                search_all(
+                    keyword,
+                    limit=SEARCH_RESULT_LIMIT,
+                    providers=search_providers,
+                    total_limit=SEARCH_TOTAL_LIMIT,
+                )
             )
             try:
                 raw_comments, source_items, source_stats = await self._do_crawl(
-                    task_id, keyword, platform, count
+                    task_id, keyword, platform, count, platforms
                 )
             except Exception:
                 search_task.cancel()
@@ -316,9 +333,10 @@ class TaskManager:
         keyword: str,
         platform: str,
         count: int,
-    ) -> tuple[list[str], list[dict]]:
+        platforms: Optional[list[str]] = None,
+    ) -> tuple[list[str], list[dict], dict[str, int]]:
         """驱动平台爬虫并向订阅者推送进度"""
-        crawler = get_crawler(platform)
+        crawler = get_crawler(platform, platforms)
         collected: list[str] = []
 
         async def progress_cb(current: int, message: str = "") -> None:
@@ -409,16 +427,30 @@ class TaskManager:
             )
             await db.commit()
 
-    @staticmethod
-    def _platform_label(platform: str) -> str:
-        return {
-            "auto": "自动聚合公开源",
-            "weibo": "微博",
-            "bilibili": "B站",
-            "douban": "豆瓣",
-            "zhihu": "知乎",
-            "tieba": "贴吧",
-        }.get(platform, platform)
+    PLATFORM_LABELS = {
+        "auto": "自动聚合公开源",
+        "weibo": "微博",
+        "bilibili": "B站",
+        "douban": "豆瓣",
+        "zhihu": "知乎",
+        "tieba": "贴吧",
+    }
+
+    @classmethod
+    def _platform_label(
+        cls,
+        platform: str,
+        platforms: Optional[Sequence[str]] = None,
+    ) -> str:
+        """进度文案里的数据源名称
+
+        限定了子集时把具体平台列出来。"自动聚合公开源"在只跑两个源的时候
+        是误导——用户会以为自己勾掉的那三个还在跑。
+        """
+        if platform == "auto" and platforms:
+            named = [cls.PLATFORM_LABELS.get(p, p) for p in platforms]
+            return "、".join(named)
+        return cls.PLATFORM_LABELS.get(platform, platform)
 
     @staticmethod
     def _bucket_comments(
