@@ -95,6 +95,7 @@ docker compose up --build     # 前端 :8080，后端 :8092
 
 `jieba` 分词 + 词性过滤（名词/动词/形容词）+ 停用词，`SnowNLP` 打分：> 0.6 记正向、< 0.4 记负向。展示情感分布、Top 15 高频词、最正/最负各 3 条代表评论，以及各平台原帖（B 站视频可内嵌播放）。
 
+<img src="assets/screenshots/search.png" width="640" alt="搜索总览">
 <img src="assets/screenshots/dashboard.png" width="640" alt="结果总览">
 
 ### 观点词云
