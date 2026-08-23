@@ -55,7 +55,7 @@ export function AnalysisOptions({
         {!sentimentEnabled && (
           <div className="notice-inline mt-2">
             <i className="bi bi-exclamation-circle" aria-hidden="true" />
-            <span>后端目前恒执行情感分析，此开关仅影响本页展示偏好。</span>
+            <span>后端目前恒执行情感分析，此开关仅影响本页展示偏好</span>
           </div>
         )}
 
@@ -108,7 +108,7 @@ export function AnalysisOptions({
               {llmConfigured ? (
                 <>将作为提问模板：「{activeType.template}」</>
               ) : (
-                <>未配置 LLM，本项不会生效；可在左侧侧栏填写 Base URL 与模型。</>
+                <>未配置 LLM，本项不会生效；可在左侧侧栏填写 Base URL 与模型</>
               )}
             </span>
           </div>

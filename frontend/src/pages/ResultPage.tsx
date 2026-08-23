@@ -279,26 +279,6 @@ export function ResultPage() {
 
           {ready && summary && (
             <div id="dashboard-ready">
-              {/* 模型上下文 XML */}
-              <div className="card mb-3">
-                <div className="card-body">
-                  <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <h5 className="card-title mb-0">模型上下文（XML）</h5>
-                    <button className="btn btn-outline-secondary btn-sm" type="button" onClick={copyXml}>
-                      {copied ? (
-                        <><i className="bi bi-check2 me-1" />已复制</>
-                      ) : (
-                        <><i className="bi bi-clipboard me-1" />复制</>
-                      )}
-                    </button>
-                  </div>
-                  <details className="llm-context-box">
-                    <summary>展开 / 收起</summary>
-                    <pre className="mb-0">{xmlContext || "加载中..."}</pre>
-                  </details>
-                </div>
-              </div>
-
               {/* 统计卡片 */}
               <div className="row g-3 mb-3">
                 <StatCard label="有效评论数" value={String(summary.total)} />
@@ -307,19 +287,21 @@ export function ResultPage() {
                 <StatCard label="数据源" value={platformLabel(summary.platform)} />
               </div>
 
+              {/* 平台内容优先：评论的出处（B站视频 / 贴吧帖 / 微博…）是用户来这一页
+                  最想先看到的东西，搜索引擎结果只是背景资料，挪到页面靠后。 */}
+              {summary.source_items && summary.source_items.length > 0 && (
+                <SourceCard items={summary.source_items} />
+              )}
+
               {/* 样本构成：多源聚合时才有意义 */}
               <SourceMix stats={summary.source_stats} />
 
-              {/* 搜索引擎检索结果（背景资料，不计入情感分析） */}
+              {/* 搜索引擎补充的事件背景。排在平台内容之后——它不是主角，但
+                  也不该藏起来：折叠久了用户会以为百度/必应根本没跑 */}
               <SearchResultsCard
                 results={summary.search_results}
                 status={summary.search_status}
               />
-
-              {/* 原帖 / 原视频 */}
-              {summary.source_items && summary.source_items.length > 0 && (
-                <SourceCard items={summary.source_items} />
-              )}
 
               {/* LLM 解读 */}
               {summary.llm_insight && (
@@ -355,7 +337,7 @@ export function ResultPage() {
                     <div className="card-body">
                       <h5 className="card-title">观点词云（仅作参考）</h5>
                       <div className="section-caption mb-3">
-                        短语抽取与情感权重属于启发式结果，适合快速浏览，不代表严格人工标注结论。
+                        短语抽取与情感权重属于启发式结果，适合快速浏览，不代表严格人工标注结论
                       </div>
                       <div className="row g-3">
                         <CloudPanel kind="positive" state={positiveCloud} />
@@ -378,6 +360,26 @@ export function ResultPage() {
                   items={summary.top_negative || []}
                   flavor="negative"
                 />
+              </div>
+
+              {/* 模型上下文 XML：调试用，正常浏览时不该占据首屏 */}
+              <div className="card mt-3">
+                <div className="card-body">
+                  <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <h5 className="card-title mb-0">模型上下文（XML）</h5>
+                    <button className="btn btn-outline-secondary btn-sm" type="button" onClick={copyXml}>
+                      {copied ? (
+                        <><i className="bi bi-check2 me-1" />已复制</>
+                      ) : (
+                        <><i className="bi bi-clipboard me-1" />复制</>
+                      )}
+                    </button>
+                  </div>
+                  <details className="llm-context-box">
+                    <summary>展开 / 收起</summary>
+                    <pre className="mb-0">{xmlContext || "加载中..."}</pre>
+                  </details>
+                </div>
               </div>
 
               {/* 下载归档 */}
@@ -426,9 +428,21 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 /** 搜索引擎检索结果。
  *
- * 与"原帖/原视频"分开成卡：那些是评论的出处，而这些是事件背景资料，
- * 不参与情感分析。标题上明确写出来，免得把两者当成同一类数据看。
+ * 与"平台内容来源"分开成卡：那些是评论的出处，而这些只是事件背景资料，
+ * 不参与情感分析——所以排在平台内容之后。但**不再默认折叠**：折起来之后
+ * 用户看不到百度/必应的任何痕迹，会直接以为检索层没跑起来。
+ *
+ * 卡内顺序也做了一次调整：带摘要的结果排在前面。聚合层是按引擎轮转合并的
+ * （见 registry._interleave），轮转保证了来源均衡，但"某某公司_百度百科"
+ * 这种只有标题没有摘要的条目混在前排，等于把最有信息量的位置浪费掉。
+ * 这里只做稳定的两段划分，不重排组内顺序，均衡性因此不受影响。
  */
+
+/** 摘要短于这个长度基本等于没有内容，排到后面去 */
+const SNIPPET_RICH_MIN = 40;
+/** 首屏先给这么多条，其余点开再看 */
+const SEARCH_PREVIEW_COUNT = 6;
+
 function SearchResultsCard({
   results,
   status,
@@ -436,16 +450,25 @@ function SearchResultsCard({
   results?: SearchResult[];
   status?: SearchProviderStatus[];
 }) {
+  const [expanded, setExpanded] = useState(false);
   const items = results || [];
   const failed = (status || []).filter((s) => !s.ok);
   if (items.length === 0 && failed.length === 0) return null;
 
+  const rich = items.filter((i) => (i.snippet || "").length >= SNIPPET_RICH_MIN);
+  const lean = items.filter((i) => (i.snippet || "").length < SNIPPET_RICH_MIN);
+  const ordered = [...rich, ...lean];
+  const visible = expanded ? ordered : ordered.slice(0, SEARCH_PREVIEW_COUNT);
+  const engines = Array.from(new Set(items.map((i) => i.source)));
+
   return (
     <div className="card mb-3">
       <div className="card-body">
-        <h5 className="card-title">搜索引擎结果</h5>
+        <h5 className="card-title">事件背景 · 搜索引擎补充</h5>
         <div className="section-caption mb-3">
-          作为事件背景提供给模型，不计入情感分析
+          {items.length} 条结果
+          {engines.length > 0 && ` · ${engines.map(platformLabel).join(" / ")}`}
+          ，作为背景资料提供给模型，不计入情感分析
         </div>
 
         {failed.length > 0 && (
@@ -459,7 +482,7 @@ function SearchResultsCard({
         )}
 
         <ol className="search-result-list">
-          {items.map((item) => (
+          {visible.map((item) => (
             <li key={`${item.source}-${item.rank}-${item.url}`} className="search-result-item">
               <span className="search-result-rank">
                 {platformLabel(item.source)} {item.rank}
@@ -481,6 +504,17 @@ function SearchResultsCard({
             </li>
           ))}
         </ol>
+
+        {ordered.length > SEARCH_PREVIEW_COUNT && (
+          <button
+            className="btn btn-light btn-sm mt-2"
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            <i className={"bi me-1 " + (expanded ? "bi-chevron-up" : "bi-chevron-down")} />
+            {expanded ? "收起" : `展开全部 ${ordered.length} 条`}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -550,38 +584,53 @@ function SourceMix({ stats }: { stats?: Record<string, number> }) {
 /** 定性区分用的中性色板，刻意避开情感三色，免得被误读成"这个源偏正面" */
 const SOURCE_MIX_COLORS = ["#0071e3", "#5e5ce6", "#64d2ff", "#8e8e93", "#c7c7cc"];
 
+/** 平台内容来源：评论抓自哪些帖子 / 视频。
+ *
+ * 这张卡紧跟统计卡片，排在搜索引擎结果之前——评论的出处才是本页主角。
+ * 第一条可内嵌的内容默认展开播放器：它就在首屏视野里，用户搜完立刻能看到
+ * 视频本身；其余条目点了才挂载 iframe，收起时 iframe 一并卸载（声音随之停）。
+ */
 function SourceCard({ items }: { items: SourceItem[] }) {
-  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
-  useEffect(() => {
-    const first = items.find((x) => x.embed_url);
-    if (first?.embed_url) setEmbedUrl(first.embed_url);
-  }, [items]);
+  const firstEmbeddable = items.findIndex((x) => x.embed_url);
+  const [playing, setPlaying] = useState<number | null>(
+    firstEmbeddable >= 0 ? firstEmbeddable : null
+  );
+
+  // 顶部先列出涉及的平台，"这些内容来自哪儿"一眼看清
+  const platforms = Array.from(
+    new Set(items.map((x) => x.platform).filter(Boolean))
+  ) as string[];
 
   return (
     <div className="card mb-3">
       <div className="card-body">
-        <h5 className="card-title mb-3">原帖 / 原视频</h5>
-        <div className="row g-3 mt-1">
-          <div className="col-lg-7">
-            {items.map((item, idx) => (
-              <div key={idx} className="source-item-card">
-                <div className="d-flex justify-content-between align-items-start gap-3">
-                  <div>
-                    <div className="source-item-platform">
-                      {platformLabel(item.platform || "")}
-                    </div>
-                    <div
-                      className="source-item-title"
-                      dangerouslySetInnerHTML={{ __html: escapeHtml(item.title || "原帖") }}
-                    />
-                    {item.subtitle && (
-                      <div
-                        className="source-item-subtitle"
-                        dangerouslySetInnerHTML={{ __html: escapeHtml(item.subtitle) }}
-                      />
-                    )}
+        <h5 className="card-title">平台内容来源</h5>
+        <div className="section-caption mb-3">
+          本次评论抓自以下帖子 / 视频
+          {platforms.length > 0 && `：${platforms.map(platformLabel).join(" · ")}`}
+        </div>
+
+        <div className="row g-3">
+          {items.map((item, idx) => {
+            const open = playing === idx;
+            return (
+              <div className="col-xl-6" key={idx}>
+                <div className={"source-item-card" + (open ? " is-open" : "")}>
+                  <div className="source-item-platform">
+                    {platformLabel(item.platform || "")}
                   </div>
-                  <div className="d-flex flex-wrap gap-2 justify-content-end">
+                  <div
+                    className="source-item-title"
+                    dangerouslySetInnerHTML={{ __html: escapeHtml(item.title || "原帖") }}
+                  />
+                  {item.subtitle && (
+                    <div
+                      className="source-item-subtitle"
+                      dangerouslySetInnerHTML={{ __html: escapeHtml(item.subtitle) }}
+                    />
+                  )}
+
+                  <div className="source-item-actions">
                     {item.url && (
                       <a
                         className="btn btn-outline-primary btn-sm"
@@ -589,36 +638,37 @@ function SourceCard({ items }: { items: SourceItem[] }) {
                         target="_blank"
                         rel="noopener noreferrer"
                       >
+                        <i className="bi bi-box-arrow-up-right me-1" />
                         打开原页面
                       </a>
                     )}
                     {item.embed_url && (
                       <button
-                        className="btn btn-primary btn-sm"
+                        className={"btn btn-sm " + (open ? "btn-light" : "btn-primary")}
                         type="button"
-                        onClick={() => setEmbedUrl(item.embed_url!)}
+                        onClick={() => setPlaying(open ? null : idx)}
                       >
-                        内嵌查看
+                        <i className={"bi me-1 " + (open ? "bi-x-lg" : "bi-play-fill")} />
+                        {open ? "收起播放器" : "内嵌播放"}
                       </button>
                     )}
                   </div>
+
+                  {open && item.embed_url && (
+                    <div className="source-embed-shell mt-3">
+                      <iframe
+                        className="source-embed-frame"
+                        src={item.embed_url}
+                        allowFullScreen
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        title={item.title || "原帖内嵌查看"}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
-          </div>
-          {embedUrl && (
-            <div className="col-lg-5">
-              <div className="source-embed-shell">
-                <iframe
-                  className="source-embed-frame"
-                  src={embedUrl}
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  title="原帖内嵌查看"
-                />
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
     </div>

@@ -83,10 +83,10 @@ export const SOURCES: SourceMeta[] = [
   { id: "zhihu", label: "知乎", icon: "bi-question-circle", kind: "crawler", platform: "zhihu", provider: null, backed: true, hint: "需配置 Cookie" },
   { id: "baidu_search", label: "百度搜索", icon: "bi-search", kind: "search", platform: null, provider: "baidu", backed: true, hint: "网页检索，覆盖面广" },
   { id: "bing_search", label: "必应搜索", icon: "bi-globe2", kind: "search", platform: null, provider: "bing", backed: true, hint: "百度被限流时的兜底" },
-  // TODO(backend): 尚未实现对应 provider，勾选后仅保存偏好。
-  // 实现方式见 backend/app/search/README.md：新增一个 provider 文件即可，
-  // 注册表自动发现，不必改动这里之外的任何代码。
-  { id: "github", label: "GitHub", icon: "bi-github", kind: "search", platform: null, provider: null, backed: false, hint: "待后端接入" },
+  // 检索源只保留通用网页搜索：代码托管站（GitHub 等）搜到的是仓库与 issue，
+  // 与"某个话题下大家在说什么"无关，放进背景资料只会稀释上下文。
+  // 若要新增引擎，见 backend/app/search/README.md：加一个 provider 文件即可，
+  // 注册表自动发现，这里补一行即成为真正生效的勾选项。
 ];
 
 export const RANKING_STRATEGIES: OptionMeta<RankingStrategy>[] = [

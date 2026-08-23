@@ -73,7 +73,7 @@ export function RetrievalSettings({ count, onCountChange, ranking, onRankingChan
         <div className="notice-inline mt-2">
           <i className="bi bi-hourglass-split" aria-hidden="true" />
           <span>
-            后端暂未实现排序策略，当前结果按<strong>来源轮转</strong>合并；此处仅保存偏好。
+            后端暂未实现排序策略，当前结果按<strong>来源轮转</strong>合并；此处仅保存偏好
           </span>
         </div>
       </div>

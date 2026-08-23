@@ -189,7 +189,7 @@ export function ChatPanel({ taskId, config }: Props) {
       <div className="llm-chat-history" ref={historyRef}>
         {messages.length === 0 ? (
           <div className="text-muted small llm-chat-empty">
-            分析完成后，在下方输入你想问的问题，我会基于当前任务的数据作答。
+            分析完成后，在下方输入你想问的问题，我会基于当前任务的数据作答
           </div>
         ) : (
           messages.map((entry, idx) => {
