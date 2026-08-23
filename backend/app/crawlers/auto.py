@@ -22,6 +22,11 @@ import asyncio
 from collections import deque
 from typing import AsyncIterator, Sequence
 
+from app.config import (
+    CRAWL_EMIT_CHUNK,
+    CRAWL_FIRST_BATCH_TIMEOUT,
+    CRAWL_SOURCE_DEADLINE,
+)
 from app.crawlers.base import BaseCrawler, ProgressCallback
 from app.crawlers.bilibili import BilibiliCrawler
 from app.crawlers.douban import DoubanCrawler
@@ -30,12 +35,15 @@ from app.crawlers.weibo import WeiboCrawler
 from app.crawlers.zhihu import ZhihuCrawler
 
 
+# 默认值与环境变量覆盖都在 app.config 里；这里保留模块级别名，一是调用点读起来
+# 更短，二是测试要按模块属性把它们临时改小（见 tests/test_auto.py 顶部）。
+#
 # 等待数据源首批数据的最大秒数
-FIRST_BATCH_TIMEOUT: float = 8.0
+FIRST_BATCH_TIMEOUT: float = CRAWL_FIRST_BATCH_TIMEOUT
 # 单个数据源从启动到放弃的整体上限，防止慢源拖垮整轮聚合
-SOURCE_DEADLINE: float = 60.0
+SOURCE_DEADLINE: float = CRAWL_SOURCE_DEADLINE
 # 攒够多少条才做一次均衡切片下发（太小会让轮转退化成"来一条发一条"）
-EMIT_CHUNK: int = 40
+EMIT_CHUNK: int = CRAWL_EMIT_CHUNK
 
 
 def _normalize(text: str) -> str:

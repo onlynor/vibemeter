@@ -6,6 +6,7 @@ import time
 from typing import Sequence
 
 from app.config import HOTSPOTS_CACHE_SECONDS
+from app.config import CRAWL_PING_TIMEOUT
 from app.crawlers.auto import AutoCrawler
 from app.crawlers.base import BaseCrawler
 from app.crawlers.bilibili import BilibiliCrawler
@@ -45,8 +46,8 @@ PLATFORM_LABELS: dict[str, str] = {
 
 SUPPORTED_PLATFORMS = list(_REGISTRY.keys())
 
-# 单个数据源探测的最长等待时间（秒）
-PING_TIMEOUT: float = 25.0
+# 单个数据源探测的最长等待时间（秒）；默认值与环境变量覆盖见 app.config
+PING_TIMEOUT: float = CRAWL_PING_TIMEOUT
 
 
 def get_crawler(platform: str, platforms: Sequence[str] | None = None) -> BaseCrawler:

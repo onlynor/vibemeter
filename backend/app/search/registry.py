@@ -14,15 +14,16 @@ import re
 from typing import Iterable, Sequence
 from urllib.parse import urlsplit
 
+from app.config import SEARCH_PROVIDER_TIMEOUT, SEARCH_TITLE_DEDUP_MIN_LEN
 from app.search.base import PingResult, SearchProvider, SearchResult
 
 
 logger = logging.getLogger(__name__)
 
-# 单个 provider 的检索时限。超时只淘汰它自己，其余 provider 照常返回。
-PROVIDER_TIMEOUT: float = 12.0
-# 短于这个长度的归一化标题不参与去重，避免"官网""首页"之类误伤
-TITLE_DEDUP_MIN_LEN: int = 8
+# 默认值与环境变量覆盖都在 app.config 里；这里保留模块级别名，一是调用点读起来
+# 更短，二是测试要按模块属性临时改小它（见 tests/test_search.py 的超时隔离用例）。
+PROVIDER_TIMEOUT: float = SEARCH_PROVIDER_TIMEOUT
+TITLE_DEDUP_MIN_LEN: int = SEARCH_TITLE_DEDUP_MIN_LEN
 
 _TITLE_NOISE_RE = re.compile(r"[\s\W_]+", re.UNICODE)
 
