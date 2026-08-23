@@ -9,6 +9,9 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "trustedDependencies": [
+    "esbuild"
+  ],
   "dependencies": {
     "dompurify": "^3.2.4",
     "echarts": "^5.5.1",

@@ -27,10 +27,14 @@ cp .env.example .env     # 生效的是 .env，填在 .env.example 里没用
 cd backend && uv run python run.py
 
 # 前端 → http://127.0.0.1:5173
-cd frontend && pnpm install && pnpm dev
+cd frontend && bun install && bun run dev
 ```
 
 打开 <http://127.0.0.1:5173> 即可。
+
+> 前端用 [bun](https://bun.com) 管依赖与跑脚本（`curl -fsSL https://bun.com/install | bash`），
+> 打包仍是 Vite。锁文件是 `bun.lock`；没装 bun 时 `npm install && npm run dev` 也能跑，
+> 只是不吃锁文件，版本可能与 CI／Docker 构建出的不一致。
 
 **Docker 一键**
 
@@ -57,12 +61,20 @@ docker compose up --build     # 前端 :8080，后端 :8092
 | 检索源 | 匿名可用 | 备注 |
 |---|:---:|---|
 | 百度搜索 | ✅ | 解析网页检索结果，自动跳过广告；频繁请求会触发安全验证，稍等即恢复 |
+| 必应搜索 | ✅ | 风控比百度松，百度出验证码时的兜底 |
 
 > 检索结果只作为**事件背景**喂给 LLM 并在页面上单独展示，**不参与情感分析**。
 > 标题与摘要是对事件的客观描述而非网友观点，混进 `SnowNLP` 会以中性分稀释真实的情感分布。
 >
-> 新增检索源（必应 / 搜狗 / 360 / GitHub …）见 [`backend/app/search/README.md`](backend/app/search/README.md)，
+> 检索源只保留**通用网页搜索**：代码托管站之类的垂直站点搜到的是仓库与 issue，
+> 与"这个话题下大家在说什么"无关，放进背景资料只会稀释上下文。
+> 新增检索源（搜狗 / 360 …）见 [`backend/app/search/README.md`](backend/app/search/README.md)，
 > 只需新增一个文件，不必改动任何既有代码。
+
+> **时限与条数都可调**：检索/采集的超时与取数上限集中在 `backend/app/config.py`，
+> 每一项都能用 `VIBE_*` 环境变量覆盖（清单见 `.env.example` 末尾），
+> 换网络环境不必改代码。百度预热拿的 `BAIDUID` 在进程内按 TTL 复用，
+> 每次检索因此省掉一次串行往返。
 
 > **本项目一律直连**：所有 `httpx` 客户端固定 `trust_env=False`，不读取 `ALL_PROXY`、`HTTP_PROXY` 等环境变量。
 > 终端里的代理配置不受影响；目标站点都在国内，走境外代理反而更容易触发风控。
@@ -75,11 +87,16 @@ docker compose up --build     # 前端 :8080，后端 :8092
 
 ### 首页监测台
 
-关键词 → 检索模式（快速分析 / 深度研究 / 实时监测）→ 数据源多选 → 高级检索设置 → 分析选项，
-高级项默认折叠，主流程始终在首屏。实时热搜支持来源筛选、定时刷新（手动 / 5 分钟 / 15 分钟 / 1 小时）
-与趋势标记；最近任务卡片可直接回看结果。
+左右两栏的工作台布局：左侧是任务配置（关键词 → 检索模式 → 数据源多选 → 高级检索设置 → 分析选项，
+高级项默认折叠），右侧是随页面吸顶的监测栏（实时热搜 + 数据源可用性），下方整行是最近任务。
+标题右边四块「执行计划」实时反映当前表单——采集平台数、目标样本量、检索引擎数、LLM 是否就绪，
+点「开始分析」之前就知道这一跑会发生什么。
 
-> 部分选项后端尚未支持（排序策略、情感粒度、新闻/GitHub 检索源等），
+实时热搜支持来源筛选、定时刷新（手动 / 5 分钟 / 15 分钟 / 1 小时）与趋势标记；
+最近任务卡片可直接回看结果。顶栏的主题开关在「跟随系统 / 浅色 / 深色」之间循环，
+默认跟随系统，选择记在本机。
+
+> 部分选项后端尚未支持（排序策略、情感粒度等），
 > 界面上会标注 **前端预设**，只保存偏好、不谎称已生效。
 
 ### 采集
@@ -93,10 +110,22 @@ docker compose up --build     # 前端 :8080，后端 :8092
 
 ### 分析结果
 
-`jieba` 分词 + 词性过滤（名词/动词/形容词）+ 停用词，`SnowNLP` 打分：> 0.6 记正向、< 0.4 记负向。展示情感分布、Top 15 高频词、最正/最负各 3 条代表评论，以及各平台原帖（B 站视频可内嵌播放）。
+`jieba` 分词 + 词性过滤（名词/动词/形容词）+ 停用词，`SnowNLP` 打分：> 0.6 记正向、< 0.4 记负向。展示情感分布、Top 15 高频词、最正/最负各 3 条代表评论。
+
+页面顺序是**平台内容优先**：统计卡片之后紧接着「平台内容来源」——评论抓自哪些 B 站视频 / 贴吧帖 / 微博，
+再是样本构成，然后才是搜索引擎补充的「事件背景」（百度 / 必应，默认展开、带摘要的结果排前面，
+其余折在「展开全部」里），最后是 LLM 解读与各类图表。背景资料排在它所支撑的来源之后，
+既不该抢在 B 站前面，也不该藏到页面底部让人以为检索层没跑。
+第一条可内嵌的内容（通常是 B 站视频）默认展开播放器——它就在首屏，搜完立刻能看；其余条目点「内嵌播放」再挂载，收起时 iframe 一并卸载。
 
 <img src="assets/screenshots/search.png" width="640" alt="搜索总览">
 <img src="assets/screenshots/dashboard.png" width="640" alt="结果总览">
+
+### 主题
+
+浅色 / 深色 / 跟随系统三态，默认跟随系统，切换后写进 `localStorage`。深浅只是两套 CSS 令牌，
+组件规则不复制第二份；首帧前由 `index.html` 的内联脚本定好主题，深色用户不会先看到一帧白底。
+图表在主题切换时重新取色重画；词云是后端渲染的白底 PNG，深色下保留浅色底板而不做反相。
 
 ### 观点词云
 
@@ -128,7 +157,7 @@ backend/
 │   ├── routers/    REST + WebSocket
 │   └── tasks/      任务流水线编排
 └── tests/          自包含测试脚本（非 pytest）
-frontend/           React + Vite + TypeScript，pnpm 管理
+frontend/           React + Vite + TypeScript，bun 管理依赖
 .env                数据源 Cookie（仅进程内使用，不落盘）
 ```
 
@@ -162,15 +191,15 @@ cd backend
 
 ```bash
 cd frontend
-pnpm typecheck
-pnpm build
+bun run typecheck
+bun run build
 ```
 
 ## 技术栈
 
 FastAPI · Uvicorn · SQLite (aiosqlite) · httpx · BeautifulSoup · jieba · SnowNLP · wordcloud
 
-React 18 · Vite 5 · TypeScript 5 · ECharts 5 · marked · DOMPurify
+React 18 · Vite 5 · TypeScript 5 · ECharts 5 · marked · DOMPurify（依赖与脚本由 bun 管理）
 
 LLM 侧兼容任意 OpenAI 格式 endpoint（自带 Base URL + Key）。
 

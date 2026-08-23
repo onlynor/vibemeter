@@ -102,16 +102,16 @@ export function SourceSelector({
           aria-hidden="true"
         />
         {crawlerCount === 0 ? (
-          <span>请至少选择一个采集平台，否则没有评论可供分析。</span>
+          <span>请至少选择一个采集平台，否则没有评论可供分析</span>
         ) : crawlerCount === 1 ? (
           <span>
             将以 <strong>{platformLabel(resolvedPlatform)}</strong> 单源采集
-            {searchCount > 0 ? `，并用 ${searchCount} 个搜索引擎补充背景。` : "，不使用检索增强。"}
+            {searchCount > 0 ? `，并用 ${searchCount} 个搜索引擎补充背景` : "，不使用检索增强"}
           </span>
         ) : (
           <span>
             将并发抓取 <strong>{crawlerCount} 个平台</strong>并按来源轮转均衡采样
-            {searchCount > 0 ? `，另有 ${searchCount} 个搜索引擎补充背景。` : "，不使用检索增强。"}
+            {searchCount > 0 ? `，另有 ${searchCount} 个搜索引擎补充背景` : "，不使用检索增强"}
           </span>
         )}
       </div>

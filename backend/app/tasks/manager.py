@@ -16,6 +16,7 @@ from typing import Optional, Sequence
 
 import aiosqlite
 
+from app import config
 from app.config import (
     DB_PATH,
     MAX_REPRESENTATIVE_COMMENTS,
@@ -34,13 +35,14 @@ from app.search import search_all
 
 logger = logging.getLogger(__name__)
 
-MIN_REQUIRED_COMMENTS = 300
-MAX_HISTORY_TASKS = 10
+# 这几个阈值的默认值与环境变量覆盖都在 app.config，这里只做别名，
+# 方便调用点书写、也方便测试按模块属性改写。
+MIN_REQUIRED_COMMENTS = config.MIN_REQUIRED_COMMENTS
+MAX_HISTORY_TASKS = config.MAX_HISTORY_TASKS
 # 每个搜索引擎单独取多少条
-SEARCH_RESULT_LIMIT = 8
-# 跨引擎合并去重后保留多少条作为 LLM 背景资料。比 8×引擎数 小得多是有意的：
-# 背景资料只用来交代"这件事是什么"，条数再多也只是挤占上下文预算。
-SEARCH_TOTAL_LIMIT = 12
+SEARCH_RESULT_LIMIT = config.SEARCH_RESULT_LIMIT
+# 跨引擎合并去重后保留多少条作为 LLM 背景资料
+SEARCH_TOTAL_LIMIT = config.SEARCH_TOTAL_LIMIT
 
 
 class TaskManager:

@@ -64,6 +64,6 @@ def _encode_issue(value: str) -> str:
         return (
             f"Cookie 含非法字符 {illegal!r}，无法作为请求头发送。"
             "多半是从开发者工具里复制到了被省略号截断的显示值，"
-            "请改用右键 Copy value，或在控制台执行 document.cookie 重新复制完整值。"
+            "请改用右键 Copy value，或在控制台执行 document.cookie 重新复制完整值"
         )
     return ""

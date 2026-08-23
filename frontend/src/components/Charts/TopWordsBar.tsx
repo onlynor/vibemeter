@@ -1,12 +1,6 @@
 import { useEffect, useRef } from "react";
-import {
-  CHART_ACCENT,
-  CHART_FONT,
-  CHART_GRID,
-  CHART_TEXT,
-  CHART_TEXT_SECONDARY,
-  echarts,
-} from "./echarts";
+import { CHART_FONT, chartPalette, echarts } from "./echarts";
+import { useThemeTick } from "../../state/theme";
 import type { WordItem } from "../../api/types";
 
 interface Props {
@@ -16,6 +10,7 @@ interface Props {
 export function TopWordsBar({ data }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
+  const themeTick = useThemeTick();
 
   useEffect(() => {
     if (!ref.current) return;
@@ -34,31 +29,35 @@ export function TopWordsBar({ data }: Props) {
     const chart = chartRef.current;
     if (!chart) return;
     const reversed = data.slice().reverse();
+    const c = chartPalette();
     chart.setOption({
-      textStyle: { fontFamily: CHART_FONT, color: CHART_TEXT_SECONDARY },
+      textStyle: { fontFamily: CHART_FONT, color: c.textSecondary },
       tooltip: {
         trigger: "axis",
-        axisPointer: { type: "shadow", shadowStyle: { color: "rgba(0,0,0,.03)" } },
-        backgroundColor: "rgba(255,255,255,.92)",
+        axisPointer: {
+          type: "shadow",
+          shadowStyle: { color: c.isDark ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.03)" },
+        },
+        backgroundColor: c.tooltipBg,
         borderWidth: 0,
-        extraCssText: "backdrop-filter:blur(20px);border-radius:12px;" +
-                      "box-shadow:0 8px 28px rgba(0,0,0,.12);",
-        textStyle: { color: CHART_TEXT, fontSize: 13 },
+        extraCssText:
+          `backdrop-filter:blur(20px);border-radius:12px;box-shadow:${c.tooltipShadow};`,
+        textStyle: { color: c.text, fontSize: 13 },
       },
       grid: { left: 4, right: 24, bottom: 4, top: 8, containLabel: true },
       xAxis: {
         type: "value",
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { color: CHART_TEXT_SECONDARY, fontSize: 12 },
-        splitLine: { lineStyle: { color: CHART_GRID } },
+        axisLabel: { color: c.textSecondary, fontSize: 12 },
+        splitLine: { lineStyle: { color: c.grid } },
       },
       yAxis: {
         type: "category",
         data: reversed.map((item) => item.name),
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { color: CHART_TEXT, fontSize: 13 },
+        axisLabel: { color: c.text, fontSize: 13 },
       },
       series: [
         {
@@ -66,13 +65,13 @@ export function TopWordsBar({ data }: Props) {
           barMaxWidth: 18,
           data: reversed.map((item) => item.value),
           itemStyle: {
-            color: CHART_ACCENT,
+            color: c.accent,
             borderRadius: [0, 5, 5, 0],
           },
         },
       ],
     });
-  }, [data]);
+  }, [data, themeTick]);
 
   return <div ref={ref} style={{ height: 360 }} />;
 }

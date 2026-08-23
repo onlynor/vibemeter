@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { CHART_FONT, SENTIMENT_COLORS, echarts } from "./echarts";
+import { CHART_FONT, chartPalette, echarts } from "./echarts";
+import { useThemeTick } from "../../state/theme";
 import type { PieSlice } from "../../api/types";
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
 export function SentimentPie({ data }: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
+  // 主题一变就重画：canvas 里的颜色不会跟着 CSS 变量走
+  const themeTick = useThemeTick();
 
   useEffect(() => {
     if (!ref.current) return;
@@ -26,43 +29,45 @@ export function SentimentPie({ data }: Props) {
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    const c = chartPalette();
     chart.setOption({
-      textStyle: { fontFamily: CHART_FONT, color: "#6e6e73" },
+      textStyle: { fontFamily: CHART_FONT, color: c.textSecondary },
       tooltip: {
         trigger: "item",
         formatter: "{b}: {c} ({d}%)",
-        backgroundColor: "rgba(255,255,255,.92)",
+        backgroundColor: c.tooltipBg,
         borderWidth: 0,
-        extraCssText: "backdrop-filter:blur(20px);border-radius:12px;" +
-                      "box-shadow:0 8px 28px rgba(0,0,0,.12);",
-        textStyle: { color: "#1d1d1f", fontSize: 13 },
+        extraCssText:
+          `backdrop-filter:blur(20px);border-radius:12px;box-shadow:${c.tooltipShadow};`,
+        textStyle: { color: c.text, fontSize: 13 },
       },
       legend: {
         bottom: 0,
         icon: "circle",
         itemGap: 20,
-        textStyle: { color: "#6e6e73", fontSize: 13 },
+        textStyle: { color: c.textSecondary, fontSize: 13 },
       },
-      color: SENTIMENT_COLORS,
+      color: c.sentiment,
       series: [
         {
           type: "pie",
           radius: ["58%", "78%"],
           center: ["50%", "46%"],
-          itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 3 },
+          // 扇区之间的缝隙用卡片底色描出来，深色下不能再写死白色
+          itemStyle: { borderRadius: 6, borderColor: c.surface, borderWidth: 3 },
           label: {
             show: true,
             formatter: "{b}\n{d}%",
-            color: "#1d1d1f",
+            color: c.text,
             fontSize: 13,
             lineHeight: 18,
           },
-          labelLine: { lineStyle: { color: "#c7c7cc" } },
+          labelLine: { lineStyle: { color: c.textSecondary } },
           data,
         },
       ],
     });
-  }, [data]);
+  }, [data, themeTick]);
 
   return <div ref={ref} style={{ height: 360 }} />;
 }

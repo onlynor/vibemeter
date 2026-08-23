@@ -329,7 +329,7 @@ class WeiboCrawler(BaseCrawler):
         if not self._cookies.get("SUB"):
             raise RuntimeError(
                 "未配置 WEIBO_COOKIE（或缺少 SUB 字段）。"
-                "微博公开搜索现已强制登录态，请登录 m.weibo.cn 后导出整段 Cookie 设到 WEIBO_COOKIE 环境变量。"
+                "微博公开搜索现已强制登录态，请登录 m.weibo.cn 后导出整段 Cookie 设到 WEIBO_COOKIE 环境变量"
             )
 
         collected = 0
