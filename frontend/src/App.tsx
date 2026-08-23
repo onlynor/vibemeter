@@ -3,6 +3,7 @@ import { HomePage } from "./pages/HomePage";
 import { ResultPage } from "./pages/ResultPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { RecentTasksMenu } from "./components/RecentTasksMenu";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 const REPO_URL = "https://github.com/onlynor/vibemeter";
 
@@ -24,6 +25,7 @@ export function App() {
           </Link>
           <nav className="site-nav">
             <RecentTasksMenu />
+            <ThemeToggle />
             <NavLink
               to="/"
               end
