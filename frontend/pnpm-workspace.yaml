@@ -1,4 +1,0 @@
-# pnpm v11+ 用 allowBuilds 替代了已移除的 onlyBuiltDependencies。
-# 未列出的依赖默认不允许执行构建脚本，且 strictDepBuilds 默认为 true（直接非零退出）。
-allowBuilds:
-  esbuild: true

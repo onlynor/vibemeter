@@ -7,7 +7,6 @@ backend/.venv/
 # Node
 frontend/node_modules/
 frontend/dist/
-pnpm-store/
 .npmrc.local
 
 # 运行时数据

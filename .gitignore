@@ -7,7 +7,6 @@ backend/.venv/
 # Node
 frontend/node_modules/
 frontend/dist/
-.pnpm-store/
 
 # 运行时数据（DB / 原始 / 清洗 / 导出 / 输出）
 backend/data/
