@@ -42,6 +42,14 @@ cd frontend && bun install && bun run dev
 docker compose up --build     # 前端 :8080，后端 :8092
 ```
 
+> 宿主机根目录的 `.env` 会被 compose 自动读取并透传进后端容器（Cookie 与
+> `VIBE_*` 调优项），没有 `.env` 也能起——各平台走匿名访问。容器里读到的同样
+> 只是环境变量，不落盘、不进库。
+>
+> 后端带健康检查（`GET /api/health`，只确认进程存活，不碰数据库与外部站点），
+> `docker compose ps` 能直接看出后端是否已就绪——前端 nginx 会先起来，
+> 后端没就绪时 `/api` 只会返回 502。
+
 ---
 
 ## 数据源
