@@ -49,7 +49,14 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8092"]
 # ============================================================================
 # 依赖与构建都交给 bun：镜像自带运行时，不需要 Node + corepack 两层引导。
 # 构建仍是 Vite（bun 只当包管理器与脚本执行器），产物与本地 bun run build 一致。
-FROM oven/bun:1-alpine AS frontend-build
+#
+# 用 Debian 版而不是 -alpine：这一层构建完就被丢掉，最终镜像是 nginx:alpine，
+# 所以体积在这里没有意义；glibc 则与本地开发、与锁文件里解析出的原生二进制
+# （rollup 的 linux-x64-gnu）一致，少一类只在容器里复现的问题。
+FROM oven/bun:1 AS frontend-build
+# oven/bun 镜像默认 USER bun，而 WORKDIR / COPY 建出来的目录属 root，
+# 直接装依赖会写不进 node_modules。构建阶段用 root，不影响最终镜像。
+USER root
 WORKDIR /build
 # 先拷清单文件 + .npmrc（registry 配置），让依赖层可被 Docker 缓存复用
 COPY .npmrc ./

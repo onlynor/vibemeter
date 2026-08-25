@@ -320,12 +320,16 @@ code, kbd, pre, samp {
     text-decoration: none;
 }
 
-/* 主题开关：外形与导航链接一致，只是行为是按钮 */
+/* 主题开关：外形与导航链接一致，只是行为是按钮。
+   只继承字体族——按钮默认不继承它；字号与字重交给上面的 .site-nav-link，
+   写成 font: inherit 会把那两项一并重置成 body 的 17px/400，
+   于是"跟随系统"几个字比"首页""GitHub"明显大一号。 */
 .theme-toggle {
     background: none;
     border: none;
     cursor: pointer;
-    font: inherit;
+    font-family: inherit;
+    letter-spacing: inherit;
 }
 
 .site-nav-link.is-active {

@@ -115,6 +115,17 @@ def _render_wordcloud(words: list[tuple[str, float]], *, palette: str) -> str:
 
 # API 端点
 
+@router.get("/health")
+async def health():
+    """存活探针：只确认进程能响应，不碰数据库、更不碰外部站点
+
+    容器编排每十秒就会敲一次，所以这里刻意不做任何真实探测——
+    数据源可用性是 ``/api/sources/health`` 的事，那条路径会对各平台发真实
+    请求（带 5 分钟缓存），拿来当健康检查等于每十秒骚扰一次目标站点。
+    """
+    return _ok({"status": "ok"})
+
+
 @router.get("/task/{task_id}/status")
 async def task_status(task_id: str):
     """返回单个任务的生命周期元数据"""

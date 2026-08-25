@@ -116,7 +116,9 @@ uv run python run.py
 
 由项目根 `Dockerfile` 的 `frontend` target 构建：
 
-1. `oven/bun:1-alpine` 阶段 `bun install --frozen-lockfile` 后 `bun run build`
+1. `oven/bun:1` 阶段 `bun install --frozen-lockfile` 后 `bun run build`
+   （用 Debian 版而非 alpine：该层构建完即丢弃，glibc 与本地一致，少一类只在容器里复现的原生二进制问题；
+   镜像默认 `USER bun`，构建阶段显式切回 root，否则装依赖会写不进 `node_modules`）
 2. 产物拷进 `nginx:alpine` 镜像，配置来自 `nginx.conf`
 
 详见根目录 `docker-compose.yml` 与 [README](../README.md#docker-部署)。

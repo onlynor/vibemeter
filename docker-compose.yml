@@ -1,4 +1,6 @@
-version: "3.9"
+# docker compose up --build   → 前端 :8080（nginx），后端 :8092
+#
+# 不写 version：compose v2 已忽略该字段，留着只会每次都打印一行废弃警告。
 
 services:
   backend:
@@ -11,8 +13,40 @@ services:
       - "8092:8092"
     volumes:
       - ./backend/data:/app/backend/data
+    # Cookie 与调优参数从宿主机的 .env 透传进容器。
+    #
+    # compose 会自动读取项目根的 .env 做变量插值，所以这里用 ${VAR:-} 而不是
+    # env_file：.env 不存在时不会报错，全部取空值（等同于未配置，各平台走匿名
+    # 访问），有 .env 时无需任何额外参数就生效。容器里读到的仍然只是环境变量，
+    # 不落盘、不进数据库，与本地运行的口径一致。
     environment:
       - PYTHONUNBUFFERED=1
+      - DOUBAN_COOKIE=${DOUBAN_COOKIE:-}
+      - TIEBA_COOKIE=${TIEBA_COOKIE:-}
+      - BILIBILI_COOKIE=${BILIBILI_COOKIE:-}
+      - WEIBO_COOKIE=${WEIBO_COOKIE:-}
+      - ZHIHU_COOKIE=${ZHIHU_COOKIE:-}
+      # 检索 / 采集调优（留空即用 app/config.py 里的默认值）
+      - VIBE_SEARCH_TIMEOUT=${VIBE_SEARCH_TIMEOUT:-}
+      - VIBE_SEARCH_WARMUP_TIMEOUT=${VIBE_SEARCH_WARMUP_TIMEOUT:-}
+      - VIBE_SEARCH_COOKIE_TTL=${VIBE_SEARCH_COOKIE_TTL:-}
+      - VIBE_SEARCH_LIMIT=${VIBE_SEARCH_LIMIT:-}
+      - VIBE_SEARCH_TOTAL_LIMIT=${VIBE_SEARCH_TOTAL_LIMIT:-}
+      - VIBE_CRAWL_FIRST_BATCH_TIMEOUT=${VIBE_CRAWL_FIRST_BATCH_TIMEOUT:-}
+      - VIBE_CRAWL_SOURCE_DEADLINE=${VIBE_CRAWL_SOURCE_DEADLINE:-}
+      - VIBE_CRAWL_EMIT_CHUNK=${VIBE_CRAWL_EMIT_CHUNK:-}
+      - VIBE_CRAWL_PING_TIMEOUT=${VIBE_CRAWL_PING_TIMEOUT:-}
+    # 起来之前 nginx 转发过去只会得到 502，健康检查让 up 的输出能看出谁没就绪
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8092/api/health').read()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   frontend:
