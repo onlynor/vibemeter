@@ -7,6 +7,12 @@
     <meta name="theme-color" content="#fbfbfd" />
     <meta name="description" content="输入关键词，跨平台采集公开评论并完成情感分析与 LLM 解读。" />
     <title>舆情洞察员 · VibeMeter</title>
+    <!-- 站点图标：`public/` 由 Vite 原样拷到 dist 根目录，nginx 直接按静态资源发。
+         显式声明是为了不留下兜底请求——没有 <link rel="icon"> 时浏览器会去要
+         /favicon.ico，而 nginx 的 SPA fallback 会用 index.html 回它。 -->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- 抢在首帧之前定主题：晚一步深色用户就会看到一闪而过的白底。
          规则必须与 src/state/theme.ts 保持一致（同一个 key、同样的解析）。 -->
     <script>
