@@ -42,6 +42,11 @@ cd frontend && bun install && bun run dev
 docker compose up --build     # 前端 :8080，后端 :8092
 ```
 
+> 端口不是写死的：在根目录 `.env` 里设 `FRONTEND_PORT` / `FRONTEND_BIND`（以及
+> `BACKEND_PORT` / `BACKEND_BIND`），或临时 `FRONTEND_PORT=80 docker compose up`，
+> 就能把页面挪到 `http://<宿主机IP>:<端口>`。前端请求走相对路径 `/api`、
+> WebSocket 走 `location.host`，换端口不用改任何前端代码或 nginx 配置。
+>
 > 宿主机根目录的 `.env` 会被 compose 自动读取并透传进后端容器（Cookie 与
 > `VIBE_*` 调优项），没有 `.env` 也能起——各平台走匿名访问。容器里读到的同样
 > 只是环境变量，不落盘、不进库。
