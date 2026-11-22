@@ -26,11 +26,38 @@ frontend/
 │   ├── App.tsx
 │   └── main.tsx
 ├── nginx.conf        # 生产容器 nginx 配置（反代 /api、/ws + SPA fallback）
+├── public/           # 原样拷贝到 dist 根目录：站点图标
+├── index.html        # SPA 入口：首帧前的主题脚本 + 站点图标声明
 ├── package.json          # trustedDependencies 白名单安装脚本（esbuild）
 ├── bun.lock              # 文本锁文件，需入库
 ├── vite.config.ts
 └── tsconfig.json
 ```
+
+## 站点图标
+
+`public/` 里的三份文件由 Vite 原样拷到 `dist/` 根目录，nginx 按普通静态资源发：
+
+| 文件 | 尺寸 | 用途 |
+|---|---|---|
+| `favicon.ico` | 16 / 32 / 48 多尺寸 | 浏览器标签页、桌面快捷方式的兜底 |
+| `favicon.png` | 64×64 | 现代浏览器优先取的 PNG 图标 |
+| `apple-touch-icon.png` | 180×180，白底不透明 | iOS 添加到主屏（透明底会被填成黑色） |
+
+三份都来自同一张 1254×1254 源图，先居中裁到 1100×1100 再去缩放——源图四周留白约 8%，
+不裁的话缩到 16px 时图案只剩中间一小块，标签页里几乎看不清。重新生成（需要 ImageMagick）：
+
+```bash
+SRC=~/图片/svg/vibemeter.png
+magick "$SRC" -gravity center -crop 1100x1100+0+0 +repage /tmp/master.png
+magick /tmp/master.png -background none  -filter Lanczos -resize 64x64 public/favicon.png
+magick /tmp/master.png -background none  -filter Lanczos -define icon:auto-resize=48,32,16 public/favicon.ico
+magick /tmp/master.png -background white -alpha remove -alpha off -filter Lanczos -resize 180x180 public/apple-touch-icon.png
+```
+
+`index.html` 里显式写了 `<link rel="icon">`，否则浏览器会去要 `/favicon.ico`，
+而 SPA fallback 会拿 `index.html` 当图标回它。图标文件名不带哈希，所以 `nginx.conf`
+给这三份单独 1 小时缓存（排在带哈希资源的 7 天规则**之前**），换图标不必等一周生效。
 
 ## 视觉体系
 
